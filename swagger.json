@@ -2077,6 +2077,90 @@
                 }
             }
         },
+        "/api/post-logs": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns log entries filtered by any combination of\n`post_id`, `event_type`, `actor`, `since`/`until`\n(RFC3339), and `limit`. Default order is newest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "post-logs"
+                ],
+                "summary": "Search Post Log entries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "post_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Event type",
+                        "name": "event_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Actor (user id or 'system')",
+                        "name": "actor",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC3339 lower bound",
+                        "name": "since",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "RFC3339 upper bound",
+                        "name": "until",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max entries",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PostLog"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts": {
             "get": {
                 "security": [
@@ -2396,6 +2480,99 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/posts/{id}/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Enqueues a Backlite cancel_zernio_job task. The Post\nremains in `Scheduled` until Zernio confirms the\ncancellation; on confirmation it transitions to the\nrequested target (`ready_for_publish` or `draft`).\nIf Zernio reports the job has already been published\n(race), the cancellation is a no-op and the next poll\ncycle lands `Published` per the normal success path\n(CON-69 §9).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Cancel a Scheduled post",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Cancellation target",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.cancelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2922,6 +3099,67 @@
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/posts/{post_id}/log": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the audit log for a single post in chronological\norder (oldest first). Default cap 500 entries; pass\n`?limit=N` to override.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "post-logs"
+                ],
+                "summary": "List Post Log entries for a post",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "post_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max entries",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PostLog"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -4206,6 +4444,15 @@
                 }
             }
         },
+        "handlers.cancelRequest": {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "description": "Target is the status the user wants the post moved to once\nZernio confirms the cancellation. Defaults to \"ready_for_publish\"\nwhen omitted (CON-69 §9 — ReadyForPublish is the most common\n\"cancel and edit\" landing state).",
+                    "type": "string"
+                }
+            }
+        },
         "handlers.cloneCampaignTypeRequest": {
             "type": "object",
             "required": [
@@ -4977,6 +5224,9 @@
                 "cta_url": {
                     "type": "string"
                 },
+                "failure_reason": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -4997,6 +5247,9 @@
                     "type": "string"
                 },
                 "published_at": {
+                    "type": "string"
+                },
+                "published_results": {
                     "type": "string"
                 },
                 "scheduled_at": {
@@ -5025,6 +5278,13 @@
                     "items": {
                         "$ref": "#/definitions/models.Asset"
                     }
+                },
+                "zernio_post_id": {
+                    "description": "Zernio integration fields (CON-69 §6/§7).\nZernioPostID is the id Zernio assigns when a Post is submitted;\nthe UNIQUE index in the migration prevents accidental double-submit.\nZernioStatus mirrors Zernio's enum verbatim so the polling task\ncan short-circuit on already-handled terminal states.\nPublishedResults carries Zernio's per-platform outcomes (URLs,\nplatform IDs) once the post resolves.\nFailureReason distinguishes Zernio-reported failure from\nreconciliation timeout — see CON-69 §8.",
+                    "type": "string"
+                },
+                "zernio_status": {
+                    "type": "string"
                 }
             }
         },
@@ -5059,6 +5319,83 @@
                 "CTATypeLink",
                 "CTATypeButton",
                 "CTATypeNone"
+            ]
+        },
+        "models.PostLog": {
+            "type": "object",
+            "properties": {
+                "actor": {
+                    "type": "string"
+                },
+                "event_timestamp": {
+                    "type": "string"
+                },
+                "event_type": {
+                    "$ref": "#/definitions/models.PostLogEventType"
+                },
+                "from_status": {
+                    "$ref": "#/definitions/models.PostStatus"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "payload": {
+                    "type": "string"
+                },
+                "post_id": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "to_status": {
+                    "$ref": "#/definitions/models.PostStatus"
+                }
+            }
+        },
+        "models.PostLogEventType": {
+            "type": "string",
+            "enum": [
+                "state_transition",
+                "state_transition_blocked",
+                "validation_passed",
+                "validation_failed",
+                "allowlist_decision",
+                "task_enqueued",
+                "task_started",
+                "task_succeeded",
+                "task_failed",
+                "task_retried",
+                "task_panicked",
+                "zernio_submit",
+                "zernio_poll",
+                "zernio_cancel",
+                "zernio_retry",
+                "reconciliation_timeout",
+                "user_schedule",
+                "user_cancel",
+                "user_retry"
+            ],
+            "x-enum-varnames": [
+                "PostLogEventStateTransition",
+                "PostLogEventStateTransitionBlocked",
+                "PostLogEventValidationPassed",
+                "PostLogEventValidationFailed",
+                "PostLogEventAllowlistDecision",
+                "PostLogEventTaskEnqueued",
+                "PostLogEventTaskStarted",
+                "PostLogEventTaskSucceeded",
+                "PostLogEventTaskFailed",
+                "PostLogEventTaskRetried",
+                "PostLogEventTaskPanicked",
+                "PostLogEventZernioSubmit",
+                "PostLogEventZernioPoll",
+                "PostLogEventZernioCancel",
+                "PostLogEventZernioRetry",
+                "PostLogEventReconciliationTimeout",
+                "PostLogEventUserSchedule",
+                "PostLogEventUserCancel",
+                "PostLogEventUserRetry"
             ]
         },
         "models.PostStatus": {

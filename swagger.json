@@ -2077,6 +2077,61 @@
                 }
             }
         },
+        "/api/platforms/{id}/post-type-rules": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns each post-type slug supported by the platform\nwith the structural rules enforced by the publish gate\n(CON-74) — required content, allowed attachment kinds,\nand min/max attachment counts. `max_attachments` is\nresolved against the platform's per-kind cap; `null`\nmeans unbounded. Slugs that are whitelist-only carry\n`rule: null` and `whitelist_only: true`.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "platforms"
+                ],
+                "summary": "List per-post-type rules for a platform",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Platform Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/platforms.PostTypeRuleView"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/post-logs": {
             "get": {
                 "security": [
@@ -5510,6 +5565,43 @@
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "platforms.PostTypeRuleView": {
+            "type": "object",
+            "properties": {
+                "label": {
+                    "type": "string"
+                },
+                "rule": {
+                    "$ref": "#/definitions/platforms.ResolvedPostTypeRule"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "whitelist_only": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "platforms.ResolvedPostTypeRule": {
+            "type": "object",
+            "properties": {
+                "allowed_kinds": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "max_attachments": {
+                    "type": "integer"
+                },
+                "min_attachments": {
+                    "type": "integer"
+                },
+                "requires_content": {
+                    "type": "boolean"
                 }
             }
         },

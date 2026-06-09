@@ -2647,6 +2647,87 @@
                 }
             }
         },
+        "/api/posts/{id}/clone": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Duplicates a post as a new draft in the same campaign and phase, copying\ntitle, content, media/attachments, used assets, CTA, and audience notes.\nAttachments are deep-copied in object storage so the clone is independent\nof its source. Pass target_platform_id/target_post_type to retarget the\nclone (verbatim content — the assistant path adapts content for you).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Clone post",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Source post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional clone overrides",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.cloneRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Post"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{id}/messages": {
             "get": {
                 "security": [
@@ -4523,6 +4604,20 @@
                 }
             }
         },
+        "handlers.cloneRequest": {
+            "type": "object",
+            "properties": {
+                "target_platform_id": {
+                    "type": "string"
+                },
+                "target_post_type": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.connectLinkRequest": {
             "type": "object",
             "required": [
@@ -5264,6 +5359,10 @@
                 "campaign_type_phase_id": {
                     "type": "string"
                 },
+                "cloned_from_post_id": {
+                    "description": "ClonedFromPostID links a clone back to the Post it was duplicated\nfrom (CON-59). Nil for posts created directly. `nullzero` sends\nNULL (not \"\") so the lineage is a clean \"has a source / does not\".",
+                    "type": "string"
+                },
                 "content": {
                     "type": "string"
                 },
@@ -5429,7 +5528,8 @@
                 "reconciliation_timeout",
                 "user_schedule",
                 "user_cancel",
-                "user_retry"
+                "user_retry",
+                "post_cloned"
             ],
             "x-enum-varnames": [
                 "PostLogEventStateTransition",
@@ -5450,7 +5550,8 @@
                 "PostLogEventReconciliationTimeout",
                 "PostLogEventUserSchedule",
                 "PostLogEventUserCancel",
-                "PostLogEventUserRetry"
+                "PostLogEventUserRetry",
+                "PostLogEventPostCloned"
             ]
         },
         "models.PostStatus": {

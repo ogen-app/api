@@ -2475,6 +2475,67 @@
                 }
             }
         },
+        "/api/posts/{id}/assess": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Runs the Post quality assessment agent (CON-85) and streams\nServer-Sent Events: a \"step\" event per flow stage, then a\nfinal \"complete\" event carrying the persisted evaluation\n(four 0-10 dimension scores with rationale, weakness, and\nspan-anchored suggestions, plus the backend-computed overall).",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Assess post quality",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/post_quality.PostQualityResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{id}/assistant": {
             "post": {
                 "security": [
@@ -5267,6 +5328,85 @@
                 }
             }
         },
+        "models.EvaluationDimension": {
+            "type": "object",
+            "properties": {
+                "contribution": {
+                    "type": "number"
+                },
+                "rationale": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "suggestions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.EvaluationSuggestion"
+                    }
+                },
+                "weakness": {
+                    "type": "string"
+                },
+                "weight": {
+                    "description": "Weight is the fraction (0-1) this dimension contributed to the\noverall, taken from the Type weight profile. Contribution is the\nweighted percentage points it added to overall_pct\n(Weight * Score/10 * 100). Both are backend-computed.",
+                    "type": "number"
+                }
+            }
+        },
+        "models.EvaluationDimensionKey": {
+            "type": "string",
+            "enum": [
+                "correctness",
+                "clarity",
+                "engagement",
+                "delivery"
+            ],
+            "x-enum-varnames": [
+                "DimensionCorrectness",
+                "DimensionClarity",
+                "DimensionEngagement",
+                "DimensionDelivery"
+            ]
+        },
+        "models.EvaluationResult": {
+            "type": "object",
+            "properties": {
+                "clarity": {
+                    "$ref": "#/definitions/models.EvaluationDimension"
+                },
+                "correctness": {
+                    "$ref": "#/definitions/models.EvaluationDimension"
+                },
+                "delivery": {
+                    "$ref": "#/definitions/models.EvaluationDimension"
+                },
+                "engagement": {
+                    "$ref": "#/definitions/models.EvaluationDimension"
+                }
+            }
+        },
+        "models.EvaluationSuggestion": {
+            "type": "object",
+            "properties": {
+                "dimension": {
+                    "$ref": "#/definitions/models.EvaluationDimensionKey"
+                },
+                "fix": {
+                    "type": "string"
+                },
+                "issue": {
+                    "type": "string"
+                },
+                "severity": {
+                    "$ref": "#/definitions/models.SuggestionSeverity"
+                },
+                "span": {
+                    "type": "string"
+                }
+            }
+        },
         "models.ImageConstraints": {
             "type": "object",
             "properties": {
@@ -5475,6 +5615,41 @@
                 "CTATypeNone"
             ]
         },
+        "models.PostEvaluation": {
+            "type": "object",
+            "properties": {
+                "caption_scoped": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model_id": {
+                    "type": "string"
+                },
+                "overall_pct": {
+                    "type": "number"
+                },
+                "platform_id": {
+                    "type": "string"
+                },
+                "platform_post_type": {
+                    "type": "string"
+                },
+                "post_id": {
+                    "type": "string"
+                },
+                "result": {
+                    "$ref": "#/definitions/models.EvaluationResult"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "models.PostLog": {
             "type": "object",
             "properties": {
@@ -5529,7 +5704,8 @@
                 "user_schedule",
                 "user_cancel",
                 "user_retry",
-                "post_cloned"
+                "post_cloned",
+                "quality_assessed"
             ],
             "x-enum-varnames": [
                 "PostLogEventStateTransition",
@@ -5551,7 +5727,8 @@
                 "PostLogEventUserSchedule",
                 "PostLogEventUserCancel",
                 "PostLogEventUserRetry",
-                "PostLogEventPostCloned"
+                "PostLogEventPostCloned",
+                "PostLogEventQualityAssessed"
             ]
         },
         "models.PostStatus": {
@@ -5634,6 +5811,19 @@
                     "type": "string"
                 }
             }
+        },
+        "models.SuggestionSeverity": {
+            "type": "string",
+            "enum": [
+                "high",
+                "medium",
+                "low"
+            ],
+            "x-enum-varnames": [
+                "SeverityHigh",
+                "SeverityMedium",
+                "SeverityLow"
+            ]
         },
         "models.Tag": {
             "type": "object",
@@ -5725,6 +5915,20 @@
                     "type": "string"
                 },
                 "rule": {
+                    "type": "string"
+                }
+            }
+        },
+        "post_quality.PostQualityResponse": {
+            "type": "object",
+            "properties": {
+                "evaluation": {
+                    "$ref": "#/definitions/models.PostEvaluation"
+                },
+                "generatedAt": {
+                    "type": "string"
+                },
+                "postId": {
                     "type": "string"
                 }
             }

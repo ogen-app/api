@@ -2536,6 +2536,67 @@
                 }
             }
         },
+        "/api/posts/{id}/assessment": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the most recent persisted quality evaluation for a\npost (CON-85/CON-92) without invoking the model. The frontend\nreads this to render an existing assessment and only triggers\nPOST /assess when the post has changed since it was scored.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Get stored post quality assessment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.PostEvaluation"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{id}/assistant": {
             "post": {
                 "security": [
@@ -5627,6 +5688,10 @@
                 "id": {
                     "type": "string"
                 },
+                "input_hash": {
+                    "description": "InputHash fingerprints the assessment inputs (rendered prompt + model)\nso the assess flow skips re-running the model when nothing the model\nsees has changed (CON-92).",
+                    "type": "string"
+                },
                 "model_id": {
                     "type": "string"
                 },
@@ -5922,6 +5987,9 @@
         "post_quality.PostQualityResponse": {
             "type": "object",
             "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
                 "evaluation": {
                     "$ref": "#/definitions/models.PostEvaluation"
                 },

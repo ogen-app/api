@@ -3066,6 +3066,96 @@
                 }
             }
         },
+        "/api/posts/{id}/schedule": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Schedules a `ready_for_publish` post for the given absolute\ntime (CON-78). Allowlisted platforms route to `scheduled`\n(auto-publish, Zernio submit enqueued); others route to\n`scheduled_for_manual_publishing`. Pass `allow_promote` to\nauto-promote a `draft` (runs CON-74 pre-publish validation,\nthen Draft → ReadyForPublish) before scheduling. The status\nchange, `scheduled_at`, audit entries, and Zernio enqueue\ncommit in one transaction.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Schedule a post for publishing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Schedule payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.scheduleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{id}/versions": {
             "get": {
                 "security": [
@@ -5230,6 +5320,17 @@
             "properties": {
                 "version_number": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.scheduleRequest": {
+            "type": "object",
+            "properties": {
+                "allow_promote": {
+                    "type": "boolean"
+                },
+                "scheduled_at": {
+                    "type": "string"
                 }
             }
         },

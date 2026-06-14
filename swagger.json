@@ -957,6 +957,93 @@
                 }
             }
         },
+        "/api/campaigns/{id}/enrich-brief": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Generates a campaign brief (description, target persona, key messages, tone guidelines)\nfrom the campaign's title and type, streaming progress via Server-Sent Events.\nPer-field \"*_delta\" events preview each value as it is written; a final \"complete\"\nevent carries the full EnrichBriefResponse and is the signal that the brief is ready.\nOn failure an \"error\" event carries {\"message\":\"\u003ctext\u003e\",\"code\":\u003chttp_code\u003e}.\nThe brief is returned as a suggestion only — it is not persisted to the campaign.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "campaigns"
+                ],
+                "summary": "Enrich campaign brief with AI (SSE)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional steering: {\\",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: step / *_delta / complete / error events"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/campaigns/{id}/generate-draft": {
             "post": {
                 "security": [

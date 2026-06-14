@@ -2983,6 +2983,89 @@
                 }
             }
         },
+        "/api/posts/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Rolls a post's content back to an earlier version (CON-68).\nRestore is non-destructive: the target version's content is\ncopied into a brand-new version that becomes the new HEAD, so\nthe full history is preserved and the restore is itself\nreversible. If the live post has unsnapshotted edits, they are\nauto-saved as a version first so nothing is lost. Restoring to\nthe version that already matches the current content is a no-op.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Restore post to a version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Target version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.restoreRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{id}/versions": {
             "get": {
                 "security": [
@@ -5142,6 +5225,14 @@
                 }
             }
         },
+        "handlers.restoreRequest": {
+            "type": "object",
+            "properties": {
+                "version_number": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.secretPutRequest": {
             "type": "object",
             "properties": {
@@ -5857,6 +5948,7 @@
                 "user_cancel",
                 "user_retry",
                 "post_cloned",
+                "post_restored",
                 "quality_assessed"
             ],
             "x-enum-varnames": [
@@ -5880,6 +5972,7 @@
                 "PostLogEventUserCancel",
                 "PostLogEventUserRetry",
                 "PostLogEventPostCloned",
+                "PostLogEventPostRestored",
                 "PostLogEventQualityAssessed"
             ]
         },

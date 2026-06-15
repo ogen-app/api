@@ -9,6 +9,81 @@
     "host": "localhost:9001",
     "basePath": "/",
     "paths": {
+        "/api/analytics/posts": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Paged, sortable overview of analytics for Zernio-published posts, plus summed/averaged totals. Served entirely from the database — no publisher call on the request path (CON-93 FR5).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "List post analytics",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "engagement|impressions|reach|likes|comments|shares|saves|clicks|views|published_at",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asc|desc (default desc)",
+                        "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional platform name filter",
+                        "name": "platform",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.analyticsListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/auto-publish-allowlist": {
             "get": {
                 "security": [
@@ -2562,6 +2637,76 @@
                 }
             }
         },
+        "/api/posts/{id}/analytics": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the latest engagement snapshot for a post published through a publisher. Served entirely from the database — never live-calls the publisher (CON-93 FR4). Two 200 shapes: a full snapshot, or — when the background refresh has not yet covered the post — the pending form `{\"status\":\"pending\",\"post_id\":\"...\"}` so clients can poll. Both are covered by the schema below (the snapshot fields are absent on the pending response; `status` is absent on a snapshot).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Get a post's analytics snapshot",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.postAnalyticsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{id}/assess": {
             "post": {
                 "security": [
@@ -4764,6 +4909,40 @@
                 }
             }
         },
+        "handlers.analyticsListResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/repository.PostAnalyticsListItem"
+                    }
+                },
+                "overview": {
+                    "$ref": "#/definitions/repository.PostAnalyticsOverview"
+                },
+                "pagination": {
+                    "$ref": "#/definitions/handlers.analyticsPagination"
+                }
+            }
+        },
+        "handlers.analyticsPagination": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "pages": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "handlers.assistantRequest": {
             "type": "object",
             "required": [
@@ -5212,6 +5391,42 @@
                     "items": {
                         "$ref": "#/definitions/handlers.platformInfo"
                     }
+                }
+            }
+        },
+        "handlers.postAnalyticsResponse": {
+            "type": "object",
+            "properties": {
+                "analytics": {
+                    "$ref": "#/definitions/models.PostAnalyticsMetrics"
+                },
+                "last_refreshed_at": {
+                    "type": "string"
+                },
+                "metrics_last_updated": {
+                    "type": "string"
+                },
+                "platform_analytics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PostPlatformAnalytics"
+                    }
+                },
+                "post_id": {
+                    "type": "string"
+                },
+                "publisher": {
+                    "type": "string"
+                },
+                "publisher_post_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is \"pending\" ONLY on the no-snapshot-yet variant, where the\n200 body is just {status, post_id} (the background refresh hasn't\ncovered this post). Omitted on a real snapshot — don't confuse it\nwith SyncStatus, which is the publisher sync state of an existing\nsnapshot. Declared here so the single Swagger 2.0 success schema\ndocuments both 200 shapes (Swagger 2.0 allows one schema per code).",
+                    "type": "string"
+                },
+                "sync_status": {
+                    "type": "string"
                 }
             }
         },
@@ -5886,6 +6101,16 @@
                 "published_results": {
                     "type": "string"
                 },
+                "publisher": {
+                    "description": "Publisher integration fields (CON-69 §6/§7, generalized to\npublisher-agnostic names in CON-93 §14).\nPublisher marks which publisher adapter owns the external identity\n(matches publishers.Publisher.ID(), e.g. \"zernio\"); empty until a\npost is published through a publisher.\nPublisherPostID is the id the publisher assigns when a Post is\nsubmitted; the UNIQUE index in the migration prevents accidental\ndouble-submit and is the join key into publisher analytics (CON-93).\nPublisherStatus mirrors the publisher's enum verbatim so the polling\ntask can short-circuit on already-handled terminal states.\nPublishedResults carries the publisher's per-platform outcomes (URLs,\nplatform IDs) once the post resolves.\nFailureReason distinguishes a publisher-reported failure from\nreconciliation timeout — see CON-69 §8.",
+                    "type": "string"
+                },
+                "publisher_post_id": {
+                    "type": "string"
+                },
+                "publisher_status": {
+                    "type": "string"
+                },
                 "scheduled_at": {
                     "type": "string"
                 },
@@ -5912,13 +6137,38 @@
                     "items": {
                         "$ref": "#/definitions/models.Asset"
                     }
+                }
+            }
+        },
+        "models.PostAnalyticsMetrics": {
+            "type": "object",
+            "properties": {
+                "clicks": {
+                    "type": "integer"
                 },
-                "zernio_post_id": {
-                    "description": "Zernio integration fields (CON-69 §6/§7).\nZernioPostID is the id Zernio assigns when a Post is submitted;\nthe UNIQUE index in the migration prevents accidental double-submit.\nZernioStatus mirrors Zernio's enum verbatim so the polling task\ncan short-circuit on already-handled terminal states.\nPublishedResults carries Zernio's per-platform outcomes (URLs,\nplatform IDs) once the post resolves.\nFailureReason distinguishes Zernio-reported failure from\nreconciliation timeout — see CON-69 §8.",
-                    "type": "string"
+                "comments": {
+                    "type": "integer"
                 },
-                "zernio_status": {
-                    "type": "string"
+                "engagement_rate": {
+                    "type": "number"
+                },
+                "impressions": {
+                    "type": "integer"
+                },
+                "likes": {
+                    "type": "integer"
+                },
+                "reach": {
+                    "type": "integer"
+                },
+                "saves": {
+                    "type": "integer"
+                },
+                "shares": {
+                    "type": "integer"
+                },
+                "views": {
+                    "type": "integer"
                 }
             }
         },
@@ -6076,6 +6326,41 @@
                 "PostLogEventPostRestored",
                 "PostLogEventQualityAssessed"
             ]
+        },
+        "models.PostPlatformAnalytics": {
+            "type": "object",
+            "properties": {
+                "account_id": {
+                    "type": "string"
+                },
+                "account_username": {
+                    "type": "string"
+                },
+                "analytics": {
+                    "$ref": "#/definitions/models.PostAnalyticsMetrics"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "platform_post_id": {
+                    "type": "string"
+                },
+                "platform_post_url": {
+                    "type": "string"
+                },
+                "reauthorize_url": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "sync_status": {
+                    "type": "string"
+                }
+            }
         },
         "models.PostStatus": {
             "type": "string",
@@ -6279,6 +6564,76 @@
                 },
                 "postId": {
                     "type": "string"
+                }
+            }
+        },
+        "repository.PostAnalyticsListItem": {
+            "type": "object",
+            "properties": {
+                "analytics": {
+                    "$ref": "#/definitions/models.PostAnalyticsMetrics"
+                },
+                "last_refreshed_at": {
+                    "type": "string"
+                },
+                "metrics_last_updated": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "post_id": {
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "publisher": {
+                    "type": "string"
+                },
+                "publisher_post_id": {
+                    "type": "string"
+                },
+                "sync_status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "repository.PostAnalyticsOverview": {
+            "type": "object",
+            "properties": {
+                "clicks": {
+                    "type": "integer"
+                },
+                "comments": {
+                    "type": "integer"
+                },
+                "engagement_rate_avg": {
+                    "type": "number"
+                },
+                "impressions": {
+                    "type": "integer"
+                },
+                "likes": {
+                    "type": "integer"
+                },
+                "post_count": {
+                    "type": "integer"
+                },
+                "reach": {
+                    "type": "integer"
+                },
+                "saves": {
+                    "type": "integer"
+                },
+                "shares": {
+                    "type": "integer"
+                },
+                "views": {
+                    "type": "integer"
                 }
             }
         },

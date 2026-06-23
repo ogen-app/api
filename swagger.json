@@ -1704,7 +1704,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Returns the local view of accounts attached via the\nZernio profile, plus the last sync timestamp + status.\nReads from SQLite — does not call Zernio.",
+                "description": "Returns the local view of accounts attached via the\nZernio profile, plus the last sync timestamp + status.\nReads from the database — does not call Zernio.",
                 "produces": [
                     "application/json"
                 ],
@@ -2915,7 +2915,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Enqueues a Backlite cancel_zernio_job task. The Post\nremains in `Scheduled` until Zernio confirms the\ncancellation; on confirmation it transitions to the\nrequested target (`ready_for_publish` or `draft`).\nIf Zernio reports the job has already been published\n(race), the cancellation is a no-op and the next poll\ncycle lands `Published` per the normal success path\n(CON-69 §9).",
+                "description": "Enqueues a River cancel_zernio_job task. The Post\nremains in `Scheduled` until Zernio confirms the\ncancellation; on confirmation it transitions to the\nrequested target (`ready_for_publish` or `draft`).\nIf Zernio reports the job has already been published\n(race), the cancellation is a no-op and the next poll\ncycle lands `Published` per the normal success path\n(CON-69 §9).",
                 "consumes": [
                     "application/json"
                 ],

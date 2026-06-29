@@ -1826,7 +1826,7 @@
         },
         "/api/integrations/zernio/health": {
             "get": {
-                "description": "Public endpoint suitable for inclusion in monitoring\ndashboards. Reports whether the integration is enabled,\nits state (disabled / degraded / ok), the bootstrapped\nprofile ID, and the most recent sync result.",
+                "description": "Public endpoint suitable for inclusion in monitoring\ndashboards. Reports the app-wide enabled flag and state\n(disabled / degraded / ok). Per-tenant profile and sync\ndetail is included only when the caller carries a tenant.",
                 "produces": [
                     "application/json"
                 ],
@@ -5468,6 +5468,7 @@
             "type": "object",
             "properties": {
                 "accountCount": {
+                    "description": "AccountCount is per-tenant, so it is a pointer that stays nil (and is\nomitted) on the unauthenticated/tenantless path — a bare \"accountCount\":0\nthere would falsely read as \"this tenant has 0 accounts\". It is set only\ninside the tenant-scoped branch below, after ListActive.",
                     "type": "integer"
                 },
                 "enabled": {

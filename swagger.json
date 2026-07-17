@@ -1032,6 +1032,134 @@
                 }
             }
         },
+        "/api/campaigns/{id}/assistant": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Sends an instruction to the Campaign Assistant and streams progress via Server-Sent Events.\n\"explanation_delta\" carries {\"delta\":\"...\"} fragments as the reply streams. \"tool_call\"/\"tool_result\"\nsignal tool invocations. When a content plan runs, \"content_plan_started\", \"content_plan_post\"\n(etc.) and \"content_plan_complete\" are forwarded; when the brief is enriched, \"enrich_brief_started\",\nthe per-field \"enrich_brief_*_delta\" events and \"enrich_brief_complete\" are forwarded. A final\n\"complete\" event carries the CampaignAssistantResponse. \"error\" carries {\"message\":\"...\",\"code\":\u003chttp_code\u003e}.\nAvailable to any user in the campaign's tenant.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "campaigns"
+                ],
+                "summary": "Campaign assistant (SSE)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Instruction payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.assistantRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: delta / tool_call / tool_result / *_complete / complete / error events"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/campaigns/{id}/brief-review": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Read-only review of the brief's internal consistency and\ncompleteness (CON-116). Streams step / complete / error events.\nDoes not modify the brief. Available to any user in the tenant.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "campaigns"
+                ],
+                "summary": "Review the campaign brief for consistency (SSE)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: step / complete / error events"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/campaigns/{id}/enrich-brief": {
             "post": {
                 "security": [
@@ -1158,6 +1286,253 @@
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/campaigns/{id}/generate-posts": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Generates a few new draft posts for a platform subset, a single\nphase, and a publish-date window (CON-114). Streams the same\nstep / post / warning / complete / error events as generate-draft.\nAvailable to any user in the campaign's tenant.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "campaigns"
+                ],
+                "summary": "Generate targeted posts (SSE)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: step / post / warning / complete / error events"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/campaigns/{id}/messages": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the most recent Campaign Assistant conversation messages for a campaign.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "campaigns"
+                ],
+                "summary": "List campaign assistant messages",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CampaignAssistantMessage"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/campaigns/{id}/overview": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns a quick overview of the campaign: brief recap, phases\n(with per-phase post counts), and content distribution by\nstatus, platform, and content type. Available to any user in\nthe campaign's tenant.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "campaigns"
+                ],
+                "summary": "Campaign overview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/overview.Overview"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/campaigns/{id}/posts-review": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Read-only check of whether the campaign's non-published posts\nfollow the brief (CON-116). Only the first N posts are checked.\nStreams step / complete / error events. Does not modify any post.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "campaigns"
+                ],
+                "summary": "Review campaign posts against the brief (SSE)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Campaign Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: step / complete / error events"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -6062,6 +6437,26 @@
                 }
             }
         },
+        "models.CampaignAssistantMessage": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
         "models.CampaignPlatform": {
             "type": "object",
             "properties": {
@@ -6776,6 +7171,126 @@
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "overview.Brief": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "keyMessages": {
+                    "type": "string"
+                },
+                "targetPersona": {
+                    "type": "string"
+                },
+                "toneGuidelines": {
+                    "type": "string"
+                }
+            }
+        },
+        "overview.Bucket": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "key": {
+                    "description": "status string / platform id / post-type slug",
+                    "type": "string"
+                },
+                "label": {
+                    "description": "human label (platform name; else the key or \"None\")",
+                    "type": "string"
+                }
+            }
+        },
+        "overview.Distribution": {
+            "type": "object",
+            "properties": {
+                "byContentType": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/overview.Bucket"
+                    }
+                },
+                "byPlatform": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/overview.Bucket"
+                    }
+                },
+                "byStatus": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/overview.Bucket"
+                    }
+                },
+                "unassignedPhasePostCount": {
+                    "description": "UnassignedPhasePostCount counts posts with no phase (or a stale phase id).",
+                    "type": "integer"
+                }
+            }
+        },
+        "overview.Overview": {
+            "type": "object",
+            "properties": {
+                "brief": {
+                    "$ref": "#/definitions/overview.Brief"
+                },
+                "campaignId": {
+                    "type": "string"
+                },
+                "distribution": {
+                    "$ref": "#/definitions/overview.Distribution"
+                },
+                "generatedAt": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "phases": {
+                    "description": "ordered by sequence",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/overview.PhaseInfo"
+                    }
+                },
+                "status": {
+                    "type": "string"
+                },
+                "totalPosts": {
+                    "type": "integer"
+                },
+                "type": {
+                    "description": "campaign type name",
+                    "type": "string"
+                }
+            }
+        },
+        "overview.PhaseInfo": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "postCount": {
+                    "type": "integer"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "sequence": {
+                    "type": "integer"
                 }
             }
         },

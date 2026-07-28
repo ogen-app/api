@@ -3932,6 +3932,88 @@
                 }
             }
         },
+        "/api/posts/{post_id}/attachments/reorder": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Renumbers the post's attachments to match `ids` (0..n-1) in one\ntransaction, so the whole list reorders in a single request\nwithout tripping UNIQUE(post_id, position) (CON-124). `ids` must\nlist every current attachment exactly once. Returns the\nreordered list.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "post-attachments"
+                ],
+                "summary": "Reorder all post attachments (atomic)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "post_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Attachment ids in the new order",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.reorderAllRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.listResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{post_id}/attachments/{id}": {
             "get": {
                 "security": [
@@ -6088,6 +6170,18 @@
                     "type": "string"
                 },
                 "supported_post_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.reorderAllRequest": {
+            "type": "object",
+            "properties": {
+                "ids": {
+                    "description": "IDs is the post's attachments in their new order. It must list every\ncurrent attachment exactly once.",
                     "type": "array",
                     "items": {
                         "type": "string"

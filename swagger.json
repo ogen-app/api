@@ -4065,7 +4065,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Updates the `position` of an attachment. Last-write-wins;\nno optimistic concurrency token (CON-73 §6 MVP decision).",
+                "description": "Updates an attachment's `position` and/or `alt_text` (at least\none required). Last-write-wins; no optimistic concurrency token\n(CON-73 §6 MVP decision).",
                 "consumes": [
                     "application/json"
                 ],
@@ -4075,7 +4075,7 @@
                 "tags": [
                     "post-attachments"
                 ],
-                "summary": "Reorder a post attachment",
+                "summary": "Update a post attachment",
                 "parameters": [
                     {
                         "type": "string",
@@ -4092,12 +4092,12 @@
                         "required": true
                     },
                     {
-                        "description": "New position",
+                        "description": "Fields to update",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.reorderRequest"
+                            "$ref": "#/definitions/handlers.updateAttachmentRequest"
                         }
                     }
                 ],
@@ -5528,6 +5528,10 @@
         "handlers.attachmentResponse": {
             "type": "object",
             "properties": {
+                "alt_text": {
+                    "description": "AltText is the accessibility description for the media (CON-122). Empty\nmeans \"no alt text\". Editable on upload and via PATCH; sent to Zernio as\nmediaItems[].altText.",
+                    "type": "string"
+                },
                 "checksum_sha256": {
                     "type": "string"
                 },
@@ -6091,17 +6095,6 @@
                 }
             }
         },
-        "handlers.reorderRequest": {
-            "type": "object",
-            "required": [
-                "position"
-            ],
-            "properties": {
-                "position": {
-                    "type": "integer"
-                }
-            }
-        },
         "handlers.restoreRequest": {
             "type": "object",
             "properties": {
@@ -6211,6 +6204,17 @@
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.updateAttachmentRequest": {
+            "type": "object",
+            "properties": {
+                "alt_text": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
                 }
             }
         },

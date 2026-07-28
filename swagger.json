@@ -2845,6 +2845,73 @@
                 }
             }
         },
+        "/api/posts/convert-to-manual": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Converts a set of posts — or every scheduled post for a\nplatform — from auto-publish (`scheduled`) to\n`scheduled_for_manual_publishing`, keeping `scheduled_at`.\nEach post's live Zernio job is cancelled server-side by a\ncancel_zernio_job task, which then lands the post directly\non `scheduled_for_manual_publishing` — no detour through\n`ready_for_publish`, so the post is never left unscheduled\nif the client disconnects mid-flight. Returns per-post\noutcomes: `converted` (accepted / already manual) and\n`failed` (not found, or not in a convertible state). A\npost that publishes before its cancel lands is handled by\nthe worker and recorded in the Post Log (CON-130).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Convert scheduled posts to manual publishing",
+                "parameters": [
+                    {
+                        "description": "Platform or explicit post ids",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.convertToManualRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{id}": {
             "get": {
                 "security": [
@@ -5858,6 +5925,20 @@
                 },
                 "platform": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.convertToManualRequest": {
+            "type": "object",
+            "properties": {
+                "platform": {
+                    "type": "string"
+                },
+                "post_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

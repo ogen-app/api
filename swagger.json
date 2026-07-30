@@ -6209,6 +6209,10 @@
                 "scheduled_at": {
                     "type": "string"
                 },
+                "social_account_id": {
+                    "description": "SocialAccountID (CON-150) names which same-platform account the post\npublishes to. Optional: omit it and the submit worker auto-selects the\nplatform's single account, or requires a choice when there are several.",
+                    "type": "string"
+                },
                 "status": {
                     "$ref": "#/definitions/models.PostStatus"
                 },
@@ -6946,6 +6950,13 @@
                 "scheduled_at": {
                     "type": "string"
                 },
+                "social_account": {
+                    "$ref": "#/definitions/models.SocialAccount"
+                },
+                "social_account_id": {
+                    "description": "SocialAccountID names which same-platform account this post\npublishes to (CON-150). NULL when unspecified — the submit worker\nthen auto-selects the platform's single account, or fails\n`account_selection_required` when the platform has more than one.\n`nullzero` sends NULL (not \"\") so the FK to social_accounts holds.",
+                    "type": "string"
+                },
                 "status": {
                     "$ref": "#/definitions/models.PostStatus"
                 },
@@ -7274,6 +7285,41 @@
                     "type": "string"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SocialAccount": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "connected_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_synced_at": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

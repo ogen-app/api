@@ -3999,6 +3999,206 @@
                 }
             }
         },
+        "/api/posts/{post_id}/attachments/finalize": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Probes the uploaded object via video-service (duration, codec,\nresolution, poster frame), validates it against the post's\nplatform, and persists the attachment row (CON-148). Corrupt\nor unreadable video is a terminal 400; an unrecognised\ncontainer/codec is 415. If video-service is unreachable the\nattachment is still created, unprobed (no duration/poster,\nweaker validation).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "post-attachments"
+                ],
+                "summary": "Finalize a presigned video upload",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "post_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Finalize body",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.finalizeVideoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.attachmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/posts/{post_id}/attachments/presign": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns a short-lived PUT URL the client uses to upload video\nbytes straight to object storage, bypassing the API process so\nmulti-GB files never buffer in memory (CON-148). The client\nthen calls finalize with the returned `s3_key`. Only video\ncontent types are accepted here; images/PDFs use the direct\nupload endpoint. Hard cap: 5 GiB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "post-attachments"
+                ],
+                "summary": "Presign a direct-to-storage video upload",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "post_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Declared upload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.presignVideoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.presignVideoResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/posts/{post_id}/attachments/reorder": {
             "patch": {
                 "security": [
@@ -5684,11 +5884,18 @@
                 "checksum_sha256": {
                     "type": "string"
                 },
+                "codec": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
                 "created_by": {
                     "type": "string"
+                },
+                "duration_ms": {
+                    "description": "DurationMs and Codec carry video metadata probed by video-service\n(CON-148). Zero/empty for non-video attachments and when the probe\nis unavailable (graceful degradation). Width/Height are reused for\nthe video's frame size.",
+                    "type": "integer"
                 },
                 "height": {
                     "type": "integer"
@@ -6006,6 +6213,17 @@
                 }
             }
         },
+        "handlers.finalizeVideoRequest": {
+            "type": "object",
+            "properties": {
+                "alt_text": {
+                    "type": "string"
+                },
+                "s3_key": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.healthResponse": {
             "type": "object",
             "properties": {
@@ -6119,6 +6337,9 @@
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "video_constraints": {
+                    "$ref": "#/definitions/models.VideoConstraints"
                 }
             }
         },
@@ -6227,6 +6448,35 @@
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "handlers.presignVideoRequest": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.presignVideoResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "description": "seconds",
+                    "type": "integer"
+                },
+                "s3_key": {
+                    "type": "string"
+                },
+                "upload_url": {
+                    "type": "string"
                 }
             }
         },
@@ -6867,6 +7117,9 @@
                 },
                 "updated_at": {
                     "type": "string"
+                },
+                "video_constraints": {
+                    "$ref": "#/definitions/models.VideoConstraints"
                 }
             }
         },
@@ -7396,6 +7649,50 @@
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "models.VideoConstraints": {
+            "type": "object",
+            "properties": {
+                "allowed_aspect_ratios": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "allowed_formats": {
+                    "description": "e.g. [\"mp4\",\"mov\",\"webm\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "max_attachments_per_post": {
+                    "description": "usually 1",
+                    "type": "integer"
+                },
+                "max_duration_seconds": {
+                    "type": "integer"
+                },
+                "max_file_size_bytes": {
+                    "type": "integer"
+                },
+                "max_height": {
+                    "description": "0 = unbounded",
+                    "type": "integer"
+                },
+                "max_width": {
+                    "description": "0 = unbounded",
+                    "type": "integer"
+                },
+                "min_duration_seconds": {
+                    "description": "Reels/Shorts have floors",
+                    "type": "integer"
+                },
+                "requires_video_title": {
+                    "description": "RequiresVideoTitle blocks publishing a video post whose title is empty\n(CON-148 §9). YouTube requires a title; most feed/Reel platforms derive\none from the caption, so this stays false for them.",
+                    "type": "boolean"
                 }
             }
         },

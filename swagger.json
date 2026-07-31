@@ -6335,6 +6335,9 @@
                         "$ref": "#/definitions/handlers.publisherView"
                     }
                 },
+                "text_constraints": {
+                    "$ref": "#/definitions/models.TextConstraints"
+                },
                 "updated_at": {
                     "type": "string"
                 },
@@ -7115,6 +7118,9 @@
                 "post_types": {
                     "$ref": "#/definitions/models.PostTypeMap"
                 },
+                "text_constraints": {
+                    "$ref": "#/definitions/models.TextConstraints"
+                },
                 "updated_at": {
                     "type": "string"
                 },
@@ -7624,6 +7630,26 @@
                 }
             }
         },
+        "models.TextConstraints": {
+            "type": "object",
+            "properties": {
+                "max_content_chars": {
+                    "description": "MaxContentChars is the default body-text ceiling applied to every post\ntype that PerPostType doesn't override. 0 = unbounded.",
+                    "type": "integer"
+                },
+                "max_title_chars": {
+                    "description": "MaxTitleChars caps the title on platforms with a distinct title field\n(YouTube, LinkedIn article). 0 = no separate title limit.",
+                    "type": "integer"
+                },
+                "per_post_type": {
+                    "description": "PerPostType overrides MaxContentChars for specific post-type slugs —\ne.g. LinkedIn {\"article\": 100000} while its feed posts stay at 3000.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "models.User": {
             "type": "object",
             "properties": {
@@ -7843,6 +7869,10 @@
                     }
                 },
                 "max_attachments": {
+                    "type": "integer"
+                },
+                "max_content_chars": {
+                    "description": "MaxContentChars is the body-text ceiling for this post type, resolved\nfrom the platform's TextConstraints (per-post-type override, else the\nplatform default). nil means unbounded — the UI shows no counter cap.\nCounts are Unicode code points, matching the server-side check (CON-91).",
                     "type": "integer"
                 },
                 "min_attachments": {

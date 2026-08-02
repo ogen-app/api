@@ -2452,6 +2452,79 @@
                 }
             }
         },
+        "/api/integrations/zernio/accounts/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Removes a connected social account: deletes it upstream on\nZernio (DELETE /accounts/{id}), then soft-deletes the local\nmirror row so a later sync doesn't revive it. Blocked with 409\nwhen the account still has scheduled posts, unless force=true.\nIdempotent: an unknown or already-disconnected id returns 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "zernio"
+                ],
+                "summary": "Disconnect a Zernio social account from the tenant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Social account id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disconnect even if scheduled posts reference the account",
+                        "name": "force",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Disconnected"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "account_not_found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "integration_disabled | account_has_scheduled_posts",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "integration_degraded",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/integrations/zernio/connect-links": {
             "post": {
                 "security": [

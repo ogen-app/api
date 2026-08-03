@@ -2247,9 +2247,47 @@
                 }
             }
         },
+        "/api/email/resubscribe": {
+            "post": {
+                "description": "Verifies the token and removes the marketing suppression for\nthe address (re-opt-in). Any hard-bounce/complaint suppression\nis left in place.",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Resubscribe to marketing email",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Signed unsubscribe token",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Resubscribed page",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or expired token",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/email/unsubscribe": {
             "get": {
-                "description": "Verifies a signed token and renders a confirmation form.\nIdempotent — GET never suppresses (so prefetchers / mail\nscanners can't unsubscribe a user); the form POSTs to /confirm.",
+                "description": "Verifies a signed token and renders a confirmation page.\nIdempotent — GET never suppresses (so prefetchers / mail\nscanners can't unsubscribe a user); the form POSTs to /confirm.",
                 "produces": [
                     "text/html"
                 ],
@@ -2268,7 +2306,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Confirmation form",
+                        "description": "Confirmation page",
                         "schema": {
                             "type": "string"
                         }
@@ -2313,7 +2351,7 @@
         },
         "/api/email/unsubscribe/confirm": {
             "post": {
-                "description": "POST target of the confirmation form: verifies the token,\nsuppresses the address from marketing mail, and renders the\nconfirmation page.",
+                "description": "Verifies the token, suppresses the address from marketing mail,\nand renders the success page (with a resubscribe option).",
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],

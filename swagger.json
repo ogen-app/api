@@ -2247,6 +2247,108 @@
                 }
             }
         },
+        "/api/email/unsubscribe": {
+            "get": {
+                "description": "Verifies a signed token and renders a confirmation form.\nIdempotent — GET never suppresses (so prefetchers / mail\nscanners can't unsubscribe a user); the form POSTs to /confirm.",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Unsubscribe landing (link)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Signed unsubscribe token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Confirmation form",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or expired token",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "The POST target advertised in the List-Unsubscribe-Post header.",
+                "tags": [
+                    "email"
+                ],
+                "summary": "One-click unsubscribe (RFC 8058)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Signed unsubscribe token",
+                        "name": "token",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Unsubscribed"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/email/unsubscribe/confirm": {
+            "post": {
+                "description": "POST target of the confirmation form: verifies the token,\nsuppresses the address from marketing mail, and renders the\nconfirmation page.",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Confirm unsubscribe (form POST)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Signed unsubscribe token",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Unsubscribed page",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or expired token",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/api/events": {
             "get": {
                 "security": [
@@ -6259,6 +6361,64 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/webhooks/resend": {
+            "post": {
+                "description": "Signature-verified ingest of Resend events. Bounces/complaints\nsuppress the address; delivery events update the send audit.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "email"
+                ],
+                "summary": "Resend delivery webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Svix message id",
+                        "name": "svix-id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Svix timestamp",
+                        "name": "svix-timestamp",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Svix signature",
+                        "name": "svix-signature",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Acknowledged"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {

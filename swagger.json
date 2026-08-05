@@ -2905,6 +2905,95 @@
                 }
             }
         },
+        "/api/password-reset": {
+            "post": {
+                "description": "Always answers 202, whether or not the address has an account, and in the same latency envelope — the response never reveals whether an account exists (CON-161). On a hit it emails a single-use reset link; on a miss it does nothing.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "password-reset"
+                ],
+                "summary": "Request a password reset",
+                "parameters": [
+                    {
+                        "description": "Email",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.passwordResetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/password-reset/confirm": {
+            "post": {
+                "description": "Consumes a single-use reset token, sets the new password, and revokes all of the user's sessions. Opens no session — the user logs in afterwards (CON-161).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "password-reset"
+                ],
+                "summary": "Complete a password reset",
+                "parameters": [
+                    {
+                        "description": "Token + new password",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.passwordResetConfirmRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/platforms": {
             "get": {
                 "security": [
@@ -6764,6 +6853,34 @@
                     "items": {
                         "$ref": "#/definitions/platforms.ValidationError"
                     }
+                }
+            }
+        },
+        "handlers.passwordResetConfirmRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "token"
+            ],
+            "properties": {
+                "password": {
+                    "description": "min=8 mirrors signup (createUserRequest); the client additionally requires\nupper/lower/digit.",
+                    "type": "string",
+                    "minLength": 8
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.passwordResetRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
                 }
             }
         },

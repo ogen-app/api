@@ -5299,7 +5299,7 @@
         },
         "/api/sessions": {
             "post": {
-                "description": "Authenticates a user by email and password, sets a session cookie, and returns the created session.",
+                "description": "Authenticates a user by email and password, sets a session cookie, and returns the created session. Failed attempts are rate-limited per client IP and per address; once a budget is exhausted the endpoint answers 429 with a Retry-After header (CON-162).",
                 "consumes": [
                     "application/json"
                 ],
@@ -5339,6 +5339,15 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {

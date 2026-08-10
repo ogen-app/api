@@ -6169,7 +6169,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Updates name and/or email of an existing user.",
+                "description": "Updates name and/or email of an existing user. When `password` is present the caller must also send `current_password`; it is re-verified and, on success, every other session for the user is revoked (the caller's own session is kept). CON-193.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6216,6 +6216,15 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -6577,6 +6586,10 @@
                 "estimated_post_count": {
                     "type": "integer"
                 },
+                "goal_cadence": {
+                    "description": "Goal cadence (CON-182): \"week\" | \"month\". Empty falls back to \"month\".\nestimated_post_count is the target posts per one of these periods.",
+                    "type": "string"
+                },
                 "key_messages": {
                     "type": "string"
                 },
@@ -6585,6 +6598,19 @@
                 },
                 "name": {
                     "type": "string"
+                },
+                "publishing_days": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "publishing_time": {
+                    "description": "Scheduling settings (CON-181). All optional; omitted fields fall back to\ndefaults (09:00 / UTC / every day / ±15 min) via normalizeScheduling.",
+                    "type": "string"
+                },
+                "spread_minutes": {
+                    "type": "integer"
                 },
                 "start_date": {
                     "type": "string"
@@ -6606,6 +6632,9 @@
                     "items": {
                         "$ref": "#/definitions/models.CampaignPlatform"
                     }
+                },
+                "timezone": {
+                    "type": "string"
                 },
                 "tone_guidelines": {
                     "type": "string"
@@ -7279,6 +7308,10 @@
                 "name"
             ],
             "properties": {
+                "current_password": {
+                    "description": "CurrentPassword re-authenticates a credential change (CON-193 §1): it is\nrequired only when Password is present and is verified against the stored\nhash, so it carries no min-length rule of its own. A plain name/email edit\nleaves it empty and unchecked.",
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -7434,6 +7467,10 @@
                 "estimated_post_count": {
                     "type": "integer"
                 },
+                "goal_cadence": {
+                    "description": "Goal (CON-182). estimated_post_count above is the target number of posts\nPER goal_cadence period; the content-plan flow multiplies it by the number\nof week/month periods the campaign's [start_date, end_date] window spans,\nand the campaign overview reports per-period progress against it.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -7451,6 +7488,19 @@
                     "items": {
                         "$ref": "#/definitions/models.Platform"
                     }
+                },
+                "publishing_days": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "publishing_time": {
+                    "description": "Scheduling settings (CON-181) — consumed by the content-plan flow to\nplace each generated draft's scheduled_at. PublishingTime is a local\n\"HH:MM\" wall clock; Timezone is an IANA name (\"\" = UTC); PublishingDays\nis a subset of mon..sun; SpreadMinutes is the ± jitter (0 = exact).",
+                    "type": "string"
+                },
+                "spread_minutes": {
+                    "type": "integer"
                 },
                 "start_date": {
                     "type": "string"
@@ -7483,6 +7533,9 @@
                     "items": {
                         "$ref": "#/definitions/models.CampaignPlatform"
                     }
+                },
+                "timezone": {
+                    "type": "string"
                 },
                 "tone_guidelines": {
                     "type": "string"
@@ -8404,6 +8457,74 @@
                 }
             }
         },
+        "overview.GoalBucket": {
+            "type": "object",
+            "properties": {
+                "achieved": {
+                    "type": "integer"
+                },
+                "end": {
+                    "type": "string"
+                },
+                "index": {
+                    "description": "1-based",
+                    "type": "integer"
+                },
+                "label": {
+                    "description": "\"Week 1\" / \"Aug 2026\"",
+                    "type": "string"
+                },
+                "reached": {
+                    "type": "boolean"
+                },
+                "start": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "integer"
+                }
+            }
+        },
+        "overview.GoalProgress": {
+            "type": "object",
+            "properties": {
+                "buckets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/overview.GoalBucket"
+                    }
+                },
+                "cadence": {
+                    "description": "\"week\" | \"month\"",
+                    "type": "string"
+                },
+                "percent": {
+                    "description": "0..100, capped",
+                    "type": "integer"
+                },
+                "periods": {
+                    "type": "integer"
+                },
+                "postsPerPeriod": {
+                    "description": "= estimated_post_count",
+                    "type": "integer"
+                },
+                "reached": {
+                    "type": "boolean"
+                },
+                "streak": {
+                    "description": "trailing consecutive reached periods",
+                    "type": "integer"
+                },
+                "totalAchieved": {
+                    "type": "integer"
+                },
+                "totalTarget": {
+                    "description": "postsPerPeriod × periods",
+                    "type": "integer"
+                }
+            }
+        },
         "overview.Overview": {
             "type": "object",
             "properties": {
@@ -8418,6 +8539,14 @@
                 },
                 "generatedAt": {
                     "type": "string"
+                },
+                "goal": {
+                    "description": "Goal is the CON-182 post-rate goal progress, or null when the campaign has\nno goal configured (no positive estimated_post_count).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/overview.GoalProgress"
+                        }
+                    ]
                 },
                 "language": {
                     "type": "string"

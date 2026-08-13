@@ -2956,7 +2956,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Owner-only. Emails a single-use invitation link to join the caller's workspace with the given role (default member). Returns 409 if the email already has an Ogen account anywhere, or if a live invite for it is already pending. Rate-limited per workspace and per IP (CON-26).",
+                "description": "Owner-only. Emails a single-use invitation link to join the caller's active workspace with the given role (default member). Idempotent per email (CON-147 §7.3): re-inviting an address with a pending invite — live or expired — re-issues it with a fresh token, expiry and email and returns 200 (a brand-new invite returns 201); there is no separate resend endpoint. An existing Ogen account may be invited into another workspace; 409 only if the email is already a member of THIS workspace. Rate-limited per workspace and per IP (CON-26/CON-147).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2979,8 +2979,14 @@
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Existing pending invitation re-issued",
+                        "schema": {
+                            "$ref": "#/definitions/models.Invitation"
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "New invitation created",
                         "schema": {
                             "$ref": "#/definitions/models.Invitation"
                         }
@@ -3035,7 +3041,7 @@
         },
         "/api/invitations/accept/{token}": {
             "get": {
-                "description": "Public. Returns the workspace, inviter, invited email and role for a valid, pending, unexpired invitation token; every unusable token returns the same generic 410 so the endpoint is not an oracle (CON-26).",
+                "description": "Public. Returns the workspace, inviter, invited email, role, and has_account (whether the invited email already has an Ogen account, so the accept page can prompt sign-in vs name+password) for a valid, pending, unexpired invitation token; every unusable token returns the same generic 410 so the endpoint is not an oracle (CON-26/CON-147).",
                 "produces": [
                     "application/json"
                 ],
@@ -3071,7 +3077,7 @@
                 }
             },
             "post": {
-                "description": "Public. Consumes a single-use invitation token, creates the invited user in the workspace with the invited role, opens a session (auto-login), and sets the session cookie (CON-26). Returns a generic 410 for any unusable token, and 409 if the email gained an account since the invite was sent.",
+                "description": "Public. Consumes a single-use invitation token and joins its workspace with the invited role. If the invited email has no Ogen account, the body's name+password create one and a session is opened (auto-login, 201). If the email already has an account, the caller must be signed in as it and only a membership is added (200, no new session). Returns a generic 410 for any unusable token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3091,7 +3097,7 @@
                         "required": true
                     },
                     {
-                        "description": "Name + password",
+                        "description": "Name + password (new accounts only)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -3101,14 +3107,29 @@
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Membership added to an existing account",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.acceptInvitationResponse"
+                        }
+                    },
                     "201": {
-                        "description": "Created",
+                        "description": "New account created and logged in",
                         "schema": {
                             "$ref": "#/definitions/handlers.acceptInvitationResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -6768,15 +6789,213 @@
                     }
                 }
             }
+        },
+        "/api/workspaces": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns every workspace the authenticated account is a member of, with the caller's role, the member count, and which one is the session default (CON-147).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "List workspaces",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/repository.WorkspaceListItem"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Creates a new, independent workspace owned by the authenticated account, provisions its Zernio profile, and returns it. Does not switch — the caller chooses when to move into it (CON-147).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "Create a workspace",
+                "parameters": [
+                    {
+                        "description": "Workspace name",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Tenant"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/workspaces/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Owner-only. Soft-deletes the workspace: it leaves every member's list and can't be entered again, but the row survives (recovery is a manual support request — there is no self-serve restore). Published posts stay live on the networks. Refuses to delete the account's only workspace (409). If it was the session default, the default is re-pointed to a surviving workspace (CON-147 PR4).",
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "Delete a workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/workspaces/{id}/switch": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Repoints the session's default workspace — where a fresh tab or the next login seeds. It does not rescope open tabs (each carries its own X-Workspace-Id), so switching in one tab leaves the others alone (CON-147). 403 if the account isn't a member of the target.",
+                "tags": [
+                    "workspaces"
+                ],
+                "summary": "Set the default workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
         "handlers.acceptInvitationRequest": {
             "type": "object",
-            "required": [
-                "name",
-                "password"
-            ],
             "properties": {
                 "name": {
                     "type": "string"
@@ -6791,7 +7010,12 @@
             "type": "object",
             "properties": {
                 "session": {
-                    "$ref": "#/definitions/models.Session"
+                    "description": "Session is set only on the new-account path (auto-login); an existing\naccount is already signed in, so it accepts without a new session.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Session"
+                        }
+                    ]
                 },
                 "tenant": {
                     "$ref": "#/definitions/models.Tenant"
@@ -7301,6 +7525,19 @@
                 }
             }
         },
+        "handlers.createWorkspaceRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                }
+            }
+        },
         "handlers.finalizeVideoRequest": {
             "type": "object",
             "properties": {
@@ -7356,6 +7593,10 @@
                 },
                 "expires_at": {
                     "type": "string"
+                },
+                "has_account": {
+                    "description": "HasAccount tells the accept page which mode applies without a wasted POST:\ntrue → the invited email already has an Ogen account, so prompt \"sign in as\n\u003cemail\u003e\" (no password field) and accept; false → collect name + password to\ncreate the account. The invitee already holds the capability token and sees\ntheir own email here, so disclosing whether that one address is registered\nadds no meaningful enumeration surface (CON-147).",
+                    "type": "boolean"
                 },
                 "inviter_name": {
                     "type": "string"
@@ -8742,6 +8983,10 @@
         "models.Session": {
             "type": "object",
             "properties": {
+                "account_id": {
+                    "description": "AccountID is the login identity this session authenticates (CON-147). The\nsession belongs to the account; UserID + TenantID are the active membership\n/ default workspace it currently resolves to.",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -8838,6 +9083,10 @@
                 "created_at": {
                     "type": "string"
                 },
+                "deleted_at": {
+                    "description": "DeletedAt marks a soft-deleted workspace (CON-147 PR4). Membership\nresolution filters it out, so a deleted workspace can't be listed, switched\nto, or entered — but the row survives for support-side recovery. Plain\ntimestamp, NOT a bun `,soft_delete` column: see the migration comment.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -8888,7 +9137,7 @@
                     "type": "string"
                 },
                 "role": {
-                    "description": "Role is the user's authority in their tenant (CON-26). Backfilled to\n'owner' for every pre-CON-26 user (each was the sole member of its tenant).",
+                    "description": "Role is the account's authority in this tenant (CON-26). Backfilled to\n'owner' for every pre-CON-26 user (each was the sole member of its tenant).",
                     "type": "string"
                 },
                 "tenant": {
@@ -9292,6 +9541,29 @@
                 },
                 "views": {
                     "type": "integer"
+                }
+            }
+        },
+        "repository.WorkspaceListItem": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "member_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
                 }
             }
         },

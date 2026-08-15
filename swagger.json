@@ -2749,6 +2749,184 @@
                 }
             }
         },
+        "/api/integrations/zernio/connect/callback": {
+            "get": {
+                "description": "Browser redirect target from Zernio after the user authorizes a\nplatform (headless mode). Authenticated by the opaque connect\nsession id (ogen_cn), not a cookie. Drives any secondary target\nselection server-side, then 302s to the SPA (success or picker).",
+                "tags": [
+                    "zernio"
+                ],
+                "summary": "Zernio headless OAuth callback",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Connect session id",
+                        "name": "ogen_cn",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirect to SPA success or picker page"
+                    }
+                }
+            }
+        },
+        "/api/integrations/zernio/connect/pending/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Backs the in-Ogen picker for a multi-target connect (LinkedIn\norgs, Facebook pages). Returns display fields only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "zernio"
+                ],
+                "summary": "List a pending connect's selectable targets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Connect session id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.pendingConnectionResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "connection_not_found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "integration_disabled",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/integrations/zernio/connect/pending/{id}/select": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Attaches the chosen target (page/org) to the tenant's profile.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "zernio"
+                ],
+                "summary": "Finalize a pending connect by selecting a target",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Connect session id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chosen target id",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.selectConnectionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_target",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "connection_not_found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "integration_disabled",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "integration_degraded",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/integrations/zernio/health": {
             "get": {
                 "description": "Public endpoint suitable for inclusion in monitoring\ndashboards. Reports the app-wide enabled flag and state\n(disabled / degraded / ok). Per-tenant profile and sync\ndetail is included only when the caller carries a tenant.",
@@ -7654,6 +7832,20 @@
                 }
             }
         },
+        "handlers.pendingConnectionResponse": {
+            "type": "object",
+            "properties": {
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/zernio.ConnectTarget"
+                    }
+                },
+                "platform": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.platformInfo": {
             "type": "object",
             "properties": {
@@ -7931,6 +8123,17 @@
                     "type": "boolean"
                 },
                 "scheduled_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.selectConnectionRequest": {
+            "type": "object",
+            "required": [
+                "targetId"
+            ],
+            "properties": {
+                "targetId": {
                     "type": "string"
                 }
             }
@@ -9633,6 +9836,26 @@
                     "items": {
                         "$ref": "#/definitions/summaries.CampaignSummary"
                     }
+                }
+            }
+        },
+        "zernio.ConnectTarget": {
+            "type": "object",
+            "properties": {
+                "avatarUrl": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         }

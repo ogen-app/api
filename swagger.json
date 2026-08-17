@@ -2046,6 +2046,78 @@
                 }
             }
         },
+        "/api/content-bank/assets/url": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Scrapes a web page to Markdown (with mirrored images) via Firecrawl and persists it as a URL asset (CON-222). Ingestion is asynchronous: the asset is created `pending` and a background job scrapes → embeds → flips status, publishing progress over `GET /api/events` (topic `entity:asset:\u003cid\u003e`). Re-submitting the same URL refreshes the existing asset in place (200) instead of duplicating it (201).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Create asset from a URL",
+                "parameters": [
+                    {
+                        "description": "URL payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createURLAssetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "existing asset, refresh re-enqueued",
+                        "schema": {
+                            "$ref": "#/definitions/models.Asset"
+                        }
+                    },
+                    "201": {
+                        "description": "new pending asset",
+                        "schema": {
+                            "$ref": "#/definitions/models.Asset"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "URL scraping not configured",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/content-bank/assets/{id}": {
             "get": {
                 "security": [
@@ -7667,6 +7739,17 @@
                 }
             }
         },
+        "handlers.createURLAssetRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.createUserRequest": {
             "type": "object",
             "required": [
@@ -8324,6 +8407,17 @@
                 "id": {
                     "type": "string"
                 },
+                "images": {
+                    "description": "Images are the mirrored page images for URL assets (CON-222), hydrated and\nURL-decorated by the handler layer. Not persisted on assets.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AssetImage"
+                    }
+                },
+                "source_url": {
+                    "description": "SourceURL is the origin URL for URL-scraped assets (CON-222); nil for\nMD/PDF/text assets. Unique per tenant, so re-submitting a URL refreshes\nthe same asset instead of duplicating it.",
+                    "type": "string"
+                },
                 "status": {
                     "type": "string"
                 },
@@ -8385,6 +8479,42 @@
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.AssetImage": {
+            "type": "object",
+            "properties": {
+                "alt": {
+                    "type": "string"
+                },
+                "asset_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "idx": {
+                    "type": "integer"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "s3_key": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "source_url": {
+                    "type": "string"
+                },
+                "url": {
+                    "description": "URL is a transient public URL rendered from S3Key by the handler layer\nbefore serialization. Not persisted.",
                     "type": "string"
                 }
             }

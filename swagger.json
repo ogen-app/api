@@ -9363,20 +9363,36 @@
                 "display_name": {
                     "type": "string"
                 },
+                "health_status": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
                 "is_active": {
                     "type": "boolean"
                 },
+                "last_health_checked_at": {
+                    "type": "string"
+                },
                 "last_synced_at": {
                     "type": "string"
+                },
+                "needs_reconnect": {
+                    "type": "boolean"
                 },
                 "platform": {
                     "type": "string"
                 },
                 "profile_id": {
                     "type": "string"
+                },
+                "token_expires_at": {
+                    "description": "Health snapshot (CON-219). Populated by the detect_expiring_connections\nsweep from Zernio's GET /v1/accounts/health; all nullable and NULL until\nthe first sweep. TokenExpiresAt is the forward-looking token expiry that\ndrives the \"connection expiring\" owner notification; HealthStatus is\nZernio's healthy/warning/error verdict. Kept out of the reconciler's\nupsert set so a sync never overwrites them.",
+                    "type": "string"
+                },
+                "token_valid": {
+                    "type": "boolean"
                 },
                 "username": {
                     "type": "string"

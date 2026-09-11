@@ -4041,6 +4041,40 @@
                 }
             }
         },
+        "/api/me/entitlements": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "The authenticated tenant's tier version in force now: its price, its full entitlement set, and its change_reason (CON-243). The cheapest answer to a disputed change — the customer sees exactly what they are on.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pricing"
+                ],
+                "summary": "Current entitlements",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/entitlements.Resolution"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/notifications": {
             "get": {
                 "security": [
@@ -6607,6 +6641,26 @@
                 }
             }
         },
+        "/api/public/pricing": {
+            "get": {
+                "description": "Unauthenticated source for the marketing Pricing page (CON-243). Returns every currently offered tier — each tier's latest active + purchasable version — with its price rows and its entitlement values enriched with catalog metadata. Net prices; retired/draft/internal tiers never appear. Cacheable (versions are immutable).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pricing"
+                ],
+                "summary": "Public pricing catalog",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.pricingResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/sessions": {
             "post": {
                 "description": "Authenticates a user by email and password, sets a session cookie, and returns the created session. Failed attempts are rate-limited per client IP and per address; once a budget is exhausted the endpoint answers 429 with a Retry-After header (CON-162).",
@@ -7987,6 +8041,74 @@
         }
     },
     "definitions": {
+        "entitlements.EntitlementValue": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_material": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "linear_issue": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "reset": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "value": {},
+                "value_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "entitlements.Resolution": {
+            "type": "object",
+            "properties": {
+                "change_reason": {
+                    "type": "string"
+                },
+                "entitlements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entitlements.EntitlementValue"
+                    }
+                },
+                "prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TenantTierVersionPrice"
+                    }
+                },
+                "purchasable": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tier_id": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "integer"
+                },
+                "version_id": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.Optional-bool": {
             "type": "object",
             "properties": {
@@ -9081,6 +9203,17 @@
                 },
                 "valid": {
                     "type": "boolean"
+                }
+            }
+        },
+        "handlers.pricingResponse": {
+            "type": "object",
+            "properties": {
+                "tiers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entitlements.Resolution"
+                    }
                 }
             }
         },
@@ -10534,6 +10667,29 @@
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.TenantTierVersionPrice": {
+            "type": "object",
+            "properties": {
+                "billing_interval": {
+                    "type": "string"
+                },
+                "country_code": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "net_minor": {
+                    "type": "integer"
+                },
+                "tier_version_id": {
                     "type": "string"
                 }
             }

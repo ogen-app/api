@@ -826,6 +826,105 @@
                 }
             }
         },
+        "/api/announcements": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "List active announcements for the caller's workspace",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.announcementDTO"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/announcements/{id}/click": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Record a CTA click on an announcement",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Announcement id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/announcements/{id}/dismiss": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "tags": [
+                    "announcements"
+                ],
+                "summary": "Dismiss (hide) an announcement for the caller",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Announcement id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/auto-publish-allowlist": {
             "get": {
                 "security": [
@@ -8466,6 +8565,41 @@
                 },
                 "total": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.announcementDTO": {
+            "type": "object",
+            "properties": {
+                "body": {
+                    "type": "string"
+                },
+                "clicked": {
+                    "type": "boolean"
+                },
+                "cta_label": {
+                    "type": "string"
+                },
+                "cta_url": {
+                    "type": "string"
+                },
+                "ends_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "image_alt": {
+                    "type": "string"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },

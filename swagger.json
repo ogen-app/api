@@ -9,6 +9,177 @@
     "host": "localhost:9001",
     "basePath": "/",
     "paths": {
+        "/api/activity/report/{date}": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Deterministic counts of what happened on a local calendar day in\nthe active workspace (CON-285): posts published (by channel),\nfailed/not-published (by channel + per-post detail), created (by\nauthor) and campaigns created. Computed server-side, so tz is\nrequired. A future or empty day returns a zeroed 200.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activity"
+                ],
+                "summary": "Activity daily report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Local calendar day (YYYY-MM-DD)",
+                        "name": "date",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "IANA time zone, e.g. America/New_York",
+                        "name": "tz",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Narrow to one campaign",
+                        "name": "campaign_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/report.Report"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/activity/reports": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Non-empty days newest-first (CON-285), keyset-paginated by date\nvia `before`. Each item carries the four headline totals — enough\nfor a feed row without fetching each day's detail.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "activity"
+                ],
+                "summary": "Activity report list",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "IANA time zone",
+                        "name": "tz",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Narrow to one campaign",
+                        "name": "campaign_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Keyset cursor: only days before this YYYY-MM-DD",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, default 30, max 100",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/report.ReportList"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/analytics/best-times": {
             "get": {
                 "security": [
@@ -11098,6 +11269,167 @@
                 }
             }
         },
+        "report.AuthorCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "report.CampaignsCreated": {
+            "type": "object",
+            "properties": {
+                "campaign_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "report.ChannelCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "platform_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "report.Created": {
+            "type": "object",
+            "properties": {
+                "by_author": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.AuthorCount"
+                    }
+                },
+                "posts_total": {
+                    "type": "integer"
+                },
+                "scheduled_total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "report.Failed": {
+            "type": "object",
+            "properties": {
+                "by_channel": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.ChannelCount"
+                    }
+                },
+                "posts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.FailedPost"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "report.FailedPost": {
+            "type": "object",
+            "properties": {
+                "failure_reason": {
+                    "type": "string"
+                },
+                "platform_id": {
+                    "type": "string"
+                },
+                "post_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "report.ListItem": {
+            "type": "object",
+            "properties": {
+                "campaigns_created_total": {
+                    "type": "integer"
+                },
+                "created_total": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "failed_total": {
+                    "type": "integer"
+                },
+                "published_total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "report.Published": {
+            "type": "object",
+            "properties": {
+                "by_channel": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.ChannelCount"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "report.Report": {
+            "type": "object",
+            "properties": {
+                "campaigns_created": {
+                    "$ref": "#/definitions/report.CampaignsCreated"
+                },
+                "created": {
+                    "$ref": "#/definitions/report.Created"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "failed": {
+                    "$ref": "#/definitions/report.Failed"
+                },
+                "published": {
+                    "$ref": "#/definitions/report.Published"
+                },
+                "tz": {
+                    "type": "string"
+                }
+            }
+        },
+        "report.ReportList": {
+            "type": "object",
+            "properties": {
+                "generated_at": {
+                    "type": "string"
+                },
+                "reports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.ListItem"
+                    }
+                }
+            }
+        },
         "repository.PostAnalyticsListItem": {
             "type": "object",
             "properties": {
@@ -11215,6 +11547,12 @@
                     "type": "string"
                 },
                 "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "failure_reason": {
                     "type": "string"
                 },
                 "id": {

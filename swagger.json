@@ -9560,6 +9560,13 @@
                 "mime_type": {
                     "type": "string"
                 },
+                "normalized_s3_key": {
+                    "description": "NormalizedS3Key points at the browser-drawable derivative image-service\nwrites for every image (assets/{id}/normalized.png). It exists precisely so\nformats a browser can't decode — HEIC/HEIF, TIFF (CON-281/CON-299) — can\nstill be shown: url is the original bytes, this is the copy an \u003cimg\u003e renders.\nNull for PDFs and for images whose extraction failed or is still pending.",
+                    "type": "string"
+                },
+                "normalized_url": {
+                    "type": "string"
+                },
                 "original_name": {
                     "type": "string"
                 },
@@ -9582,7 +9589,7 @@
                     "type": "string"
                 },
                 "url": {
-                    "description": "URL and ThumbnailURL are transient public URLs rendered from S3Key /\nThumbnailS3Key by the handler layer before serialization. URL is the\noriginal — the one an image viewer renders (CON-246). Not persisted.",
+                    "description": "URL, ThumbnailURL and NormalizedURL are transient public URLs rendered from\nS3Key / ThumbnailS3Key / NormalizedS3Key by the handler layer before\nserialization. URL is the original bytes (CON-246); NormalizedURL is the copy\na browser can draw (CON-299) — the full-size asset screen renders it for\nHEIC/TIFF; ThumbnailURL is the small preview. Not persisted; minted per\nresponse so a signed/public URL is never stored or cached client-side.",
                     "type": "string"
                 },
                 "width": {

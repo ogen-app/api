@@ -8317,6 +8317,10 @@
                 "category": {
                     "type": "string"
                 },
+                "current": {
+                    "description": "Current is the tenant's live usage for a numeric feature that has a\nregistered counter (CON-295), attached by the authenticated /me/entitlements\nread so the client can render \"N of M\". Omitted (nil) for an uncounted or\nboolean feature and for the public pricing catalog (no tenant) — the client\ntreats absent as \"unknown\", distinct from a real 0.",
+                    "type": "integer"
+                },
                 "description": {
                     "type": "string"
                 },

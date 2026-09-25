@@ -1014,6 +1014,253 @@
                 }
             }
         },
+        "/api/brand/facts": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "brand"
+                ],
+                "summary": "Add a fact to the ledger",
+                "parameters": [
+                    {
+                        "description": "Fact",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.brandFactRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.BrandFact"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "a fact with this statement already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/brand/facts/{id}": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Full replace of statement, subject, kind, source and the three dates. The author never changes; an unchanged save keeps updatedAt.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "brand"
+                ],
+                "summary": "Replace a fact's editable fields",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Fact id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fact",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.brandFactRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.BrandFact"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "a fact with this statement already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "tags": [
+                    "brand"
+                ],
+                "summary": "Remove a fact from the ledger",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Fact id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/brand/guardrails/stance": {
+            "put": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "none=true is only accepted while there are no guardrails (409 otherwise). none=false returns the workspace to undecided. Saving guardrails clears the stance.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "brand"
+                ],
+                "summary": "Record whether the workspace has decided it needs no guardrails",
+                "parameters": [
+                    {
+                        "description": "Stance",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.guardrailsStanceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.GuardrailsStance"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/campaign_types": {
             "get": {
                 "security": [
@@ -10150,6 +10397,46 @@
                 }
             }
         },
+        "handlers.brandFactRequest": {
+            "type": "object",
+            "properties": {
+                "addedAt": {
+                    "type": "string",
+                    "example": "2026-09-01"
+                },
+                "checkedAt": {
+                    "type": "string",
+                    "example": "2026-09-20"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2027-01-31"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "measured",
+                        "documented",
+                        "commitment",
+                        "judgement"
+                    ]
+                },
+                "source": {
+                    "type": "string"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string",
+                    "enum": [
+                        "us",
+                        "problem",
+                        "opportunity"
+                    ]
+                }
+            }
+        },
         "handlers.bulkTagRequest": {
             "type": "object",
             "required": [
@@ -10649,6 +10936,14 @@
                 },
                 "s3_key": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.guardrailsStanceRequest": {
+            "type": "object",
+            "properties": {
+                "none": {
+                    "type": "boolean"
                 }
             }
         },
@@ -11851,6 +12146,66 @@
                 }
             }
         },
+        "models.BrandFact": {
+            "type": "object",
+            "properties": {
+                "addedAt": {
+                    "type": "string",
+                    "example": "2026-09-01"
+                },
+                "checkedAt": {
+                    "type": "string",
+                    "example": "2026-09-20"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "createdByName": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string",
+                    "example": "2027-01-31"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "enum": [
+                        "measured",
+                        "documented",
+                        "commitment",
+                        "judgement"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.FactKind"
+                        }
+                    ]
+                },
+                "source": {
+                    "type": "string"
+                },
+                "statement": {
+                    "type": "string"
+                },
+                "subject": {
+                    "enum": [
+                        "us",
+                        "problem",
+                        "opportunity"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.FactSubject"
+                        }
+                    ]
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
         "models.Campaign": {
             "type": "object",
             "properties": {
@@ -12165,6 +12520,51 @@
                 },
                 "span": {
                     "type": "string"
+                }
+            }
+        },
+        "models.FactKind": {
+            "type": "string",
+            "enum": [
+                "measured",
+                "documented",
+                "commitment",
+                "judgement"
+            ],
+            "x-enum-varnames": [
+                "FactKindMeasured",
+                "FactKindDocumented",
+                "FactKindCommitment",
+                "FactKindJudgement"
+            ]
+        },
+        "models.FactSubject": {
+            "type": "string",
+            "enum": [
+                "us",
+                "problem",
+                "opportunity"
+            ],
+            "x-enum-varnames": [
+                "FactSubjectUs",
+                "FactSubjectProblem",
+                "FactSubjectOpportunity"
+            ]
+        },
+        "models.GuardrailsStance": {
+            "type": "object",
+            "properties": {
+                "decidedAt": {
+                    "type": "string"
+                },
+                "decidedBy": {
+                    "type": "string"
+                },
+                "decidedByName": {
+                    "type": "string"
+                },
+                "none": {
+                    "type": "boolean"
                 }
             }
         },

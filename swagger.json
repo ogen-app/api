@@ -2769,6 +2769,170 @@
                 }
             }
         },
+        "/api/content-bank/assets/audio/finalize": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Step 3 of 3: confirms the PUT object (size + 5 GiB cap), then enqueues the first transcription run atomically. Idempotent (deterministic run_key). The asset then moves `pending` → `processing` → `ready`/`partial`/`failed`; poll `GET /{id}/audio`. On completion the transcript becomes the asset's `content` and time-anchored chunks (`GET /{id}/chunks`).\nGated by the media_storage_bytes tier limit on the uploaded size (402 `entitlement_exceeded`).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Finalize an audio upload",
+                "parameters": [
+                    {
+                        "description": "Asset to finalize (+ optional model pin)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.finalizeAudioRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.Asset"
+                        }
+                    },
+                    "400": {
+                        "description": "no pending upload, or the object isn't there yet",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "media_storage_bytes limit reached",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "audio ingestion is not configured",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "over the 5 GiB cap",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/audio/presign": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Step 1 of 3 of audio ingestion (CON-282): mints a pending `AUDIO` asset and returns a 30-minute presigned PUT. The client PUTs the bytes straight to object storage with the returned `method` + `headers` (the Content-Type is bound into the signature), then calls `POST /audio/finalize`. Accepted: mp3, wav, m4a, aac, ogg/oga, opus, flac, webm, aif/aiff (max 5 GiB, enforced at finalize).\nGated by the content_bank_assets tier limit (402 `entitlement_exceeded`).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Presign an audio upload",
+                "parameters": [
+                    {
+                        "description": "Original filename (drives format + title)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.presignAudioRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.presignAudioResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "unsupported audio type",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "content_bank_assets limit reached",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "audio ingestion is not configured",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/content-bank/assets/tags": {
             "post": {
                 "security": [
@@ -2836,7 +3000,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Accepts one or more `.md` (max 10 MB), `.pdf` (max 50 MB), or image (JPEG/PNG/WebP/GIF, max 10 MB) files. Markdown files are converted to BlockNote JSON synchronously; PDFs are uploaded to object storage and processed asynchronously (text extraction, page-aware chunking, embedding, thumbnail); images (CON-246) are probed and stored synchronously as `IMG` assets (`ready`), deduplicated within the tenant by checksum. Files are processed independently — one failure does not block others.",
+                "description": "Accepts one or more files under the field `files`, routed by extension. Files are processed independently — one failure does not block others; each gets a result with `status` `created` or `failed`.\n- `.md` (max 10 MB): converted to BlockNote JSON synchronously (`MD`, `ready`).\n- `.pdf` (max 50 MB): stored, then processed asynchronously (text extraction, page-aware chunking, embedding, thumbnail) as `PDF` (`pending` → `ready`/`partial`/`failed`).\n- Images — JPEG, PNG, WebP, GIF, HEIC/HEIF, AVIF, TIFF, BMP (operator-set cap, default 50 MB; SVG is rejected): stored and ingested asynchronously by image-service (normalize, EXIF-strip, vision description, region extraction, alt text) as `IMG` (`pending` → `ready`/`partial`/`failed`); deduplicated within the tenant by checksum. Poll `GET /{id}/image` for the run.\n- Office/text documents — .docx/.docm/.dotx, .xlsx/.xlsm/.xltx, .pptx/.pptm/.potx, .odt/.ods/.odp (+ flat), .epub, .csv/.tsv, .html/.xhtml, .eml, .rtf, .txt/.log (max 50 MB; legacy/password-protected OLE2 rejected): parsed asynchronously by document-service into source-anchored chunks as `DOC` (`pending` → `ready`/`partial`/`failed`, with `failure_code`/`failure_reason` on the asset when failed).\nAudio is not accepted here — use `POST /audio/presign` + `/audio/finalize`.\nA failed result carries a stable `code` beside the prose `error`: `extension_not_allowed`, `unsupported_media_type`, `vector_rejected`, `too_large`, `empty_file`, `invalid_file`, `dimensions_exceeded`, `quota_exceeded` (content-bank asset or media-storage tier limit), `service_unavailable`, `internal_error`. Match on the code; fall back to the prose for unknown codes.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -2846,11 +3010,11 @@
                 "tags": [
                     "content-bank"
                 ],
-                "summary": "Upload Markdown, PDF, or image file(s)",
+                "summary": "Upload Markdown, PDF, image, or document file(s)",
                 "parameters": [
                     {
                         "type": "file",
-                        "description": "Markdown, PDF, or image file(s)",
+                        "description": "Markdown, PDF, image, or document file(s)",
                         "name": "files",
                         "in": "formData",
                         "required": true
@@ -2860,8 +3024,7 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handlers.uploadResponse"
                         }
                     },
                     "400": {
@@ -3014,7 +3177,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Updates title and content of an existing asset.",
+                "description": "Whole-resource write of an asset's title, content, and (when present) alt_text / tag_ids — an omitted alt_text or tag_ids keeps the stored value.\nContent rules by type: MD/URL require non-empty content and re-embed on a title/content change. IMG content is the image description — may be empty; an edit re-embeds it together with the stored region chunks. PDF/DOC/AUDIO content is ingestion output and read-only: send it unchanged or omit it (empty = keep); a different value is a 409 `{code: \"content_locked\"}` — re-extract instead. Renaming an ingested asset never re-chunks it.\n`alt_text_edited_by_user` flips to true only when alt_text actually changes.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3076,6 +3239,15 @@
                                 "type": "string"
                             }
                         }
+                    },
+                    "409": {
+                        "description": "content_locked: content edit on a PDF/DOC/AUDIO asset",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             },
@@ -3114,6 +3286,690 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/audio": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the latest transcription run (status, detected language, duration, cost, `failure_code`/`failure_reason`) with per-segment progress.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Get audio extraction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.audioStatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not an AUDIO asset, or no extraction yet",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/audio/extract": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Starts the first transcription run when finalize didn't (e.g. audio-service was down). 409 when a run already exists — use retry or reextract.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Start audio transcription",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional model pin",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.pinnedModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.extractionEnqueuedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "not configured, or a run already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/audio/reextract": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Forces a fresh full run under a new run_key (optionally pinning a model). Prior chunks and transcript content are replaced on completion.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Re-transcribe audio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional model pin",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.pinnedModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.extractionEnqueuedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "audio ingestion is not configured",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/audio/retry": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Re-drives only the failed segments of the latest run (same run_key) — completed segments are not reprocessed. Use after a `partial` run (`failure_code: extraction_partial`). 409 when there is nothing to retry.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Retry failed audio segments",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.extractionEnqueuedResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "not configured, or no failed segments",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/audio/transcript": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the latest run's raw transcript in timeline order: every utterance (incl. non-speech spans, `is_speech: false`) with original-timeline `start_ms`/`end_ms`, an \"M:SS\" `label`, language and confidence. Empty until the asset has been transcribed. For the searchable, de-overlapped chunks use `GET /{id}/chunks`.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Get audio transcript",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.transcriptResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/chunks": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns one page of an asset's searchable chunks in chunk order, without embeddings (CON-312). Chunks from service-ingested assets carry `source_label` (a citation like \"Slide 4\", \"Sheet 'Q3' rows 10–24\", \"1:05–1:40\", \"Region 2\") and `source_anchor` (its structured location: page/slide/sheet/section/email/time/image, with `start_ms`/`end_ms` for audio and a normalized `bbox` for image regions). Both are absent on markdown and URL chunks.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "List asset chunks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Chunks to skip (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 100, max 500)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.assetChunksResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/image": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the latest vision run for an IMG asset (status, shape, quality flags, `failure_code`/`failure_reason`, cost) with its structured region blocks. Each block carries a normalized `bbox` anchor on the source image.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Get image extraction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.imageStatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "not an IMG asset, or no extraction yet",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/image/alt-text": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Synchronously re-runs only alt-text generation for the stored image and overwrites the asset's alt text — an explicit user action, so it replaces even a user-edited value and does not flip `alt_text_edited_by_user`.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Regenerate image alt text",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.altTextResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "no uploaded image, or it could not be read",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "image processing is not configured",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "image-service temporarily unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/image/extract": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Starts the first vision run for an IMG asset when the upload-time enqueue didn't (e.g. image-service was down). 409 when a run already exists — use reextract. Optional body pins the extraction model.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Start image extraction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional model pin",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.pinnedModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.extractionEnqueuedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "asset has no uploaded image",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "not configured, or a run already exists",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/content-bank/assets/{id}/image/reextract": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Forces a fresh full vision run under a new run_key (optionally pinning a model). Prior blocks/chunks are replaced on completion; prior extraction rows are kept (additive history). A user-edited alt text is never overwritten.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "content-bank"
+                ],
+                "summary": "Re-extract an image",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Asset Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional model pin",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.pinnedModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.extractionEnqueuedResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "asset has no uploaded image",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "image processing is not configured",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -6203,6 +7059,68 @@
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Manually creates a version snapshot of the current post content.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Create post version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Version payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.createVersionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.PostVersion"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
             }
         },
         "/api/posts/{post_id}/attachments": {
@@ -6262,7 +7180,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Accepts a single image (CON-73) or PDF (CON-75) file via\nmultipart/form-data under the field `file`. The file is\ndecoded server-side to validate the MIME — JPEG/PNG/WebP/GIF\nfor images, application/pdf for PDFs — then streamed to\nobject storage. Hard caps: 50 MB images, 100 MB PDFs.\nPDF uploads also render a first-page PNG thumbnail\n(best-effort; failures do not abort the upload).\nPer-platform caps are surfaced as soft warnings in the\nresponse.",
+                "description": "Accepts a single image (CON-73) or PDF (CON-75) file via\nmultipart/form-data under the field `file`. Images — JPEG,\nPNG, WebP, GIF, HEIC/HEIF, AVIF, TIFF, BMP — are validated and\nEXIF-stripped (pixels preserved) by image-service (CON-281);\nSVG is rejected. PDFs are validated as application/pdf and\nget a best-effort first-page PNG thumbnail. Video uses the\npresign flow instead. Caps are operator-set (defaults: 50 MB\nimages, 100 MB PDFs) and the upload counts toward the\ntenant's media_storage_bytes tier limit (402 when over).\nPer-platform caps are surfaced as soft warnings in the\nresponse. A reject is `{code, error}` with a stable code:\nunsupported_media_type, vector_rejected, too_large,\nempty_file, invalid_file, dimensions_exceeded,\nservice_unavailable, internal_error.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -6312,6 +7230,13 @@
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "402": {
+                        "description": "media_storage_bytes limit reached",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "404": {
@@ -8538,6 +9463,17 @@
                 }
             }
         },
+        "handlers.altTextResponse": {
+            "type": "object",
+            "properties": {
+                "alt_text": {
+                    "type": "string"
+                },
+                "asset_id": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.analyticsListResponse": {
             "type": "object",
             "properties": {
@@ -8604,6 +9540,26 @@
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.assetChunksResponse": {
+            "type": "object",
+            "properties": {
+                "chunks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AssetChunk"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -8705,6 +9661,20 @@
                 },
                 "width": {
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.audioStatusResponse": {
+            "type": "object",
+            "properties": {
+                "extraction": {
+                    "$ref": "#/definitions/models.AudioExtraction"
+                },
+                "segments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.AudioSegment"
+                    }
                 }
             }
         },
@@ -9069,6 +10039,14 @@
                 }
             }
         },
+        "handlers.createVersionRequest": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.createWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -9079,6 +10057,36 @@
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 1
+                }
+            }
+        },
+        "handlers.extractionEnqueuedResponse": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "run_key": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "enqueued"
+                }
+            }
+        },
+        "handlers.finalizeAudioRequest": {
+            "type": "object",
+            "required": [
+                "asset_id"
+            ],
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "model": {
+                    "description": "PinnedModel optionally overrides TRANSCRIBE_MODEL for this run.",
+                    "type": "string"
                 }
             }
         },
@@ -9114,6 +10122,20 @@
                 },
                 "state": {
                     "type": "string"
+                }
+            }
+        },
+        "handlers.imageStatusResponse": {
+            "type": "object",
+            "properties": {
+                "blocks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ImageBlock"
+                    }
+                },
+                "extraction": {
+                    "$ref": "#/definitions/models.ImageExtraction"
                 }
             }
         },
@@ -9225,6 +10247,14 @@
                     }
                 },
                 "platform": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.pinnedModelRequest": {
+            "type": "object",
+            "properties": {
+                "model": {
                     "type": "string"
                 }
             }
@@ -9442,6 +10472,43 @@
                             "$ref": "#/definitions/handlers.Optional-models_StringSlice"
                         }
                     ]
+                }
+            }
+        },
+        "handlers.presignAudioRequest": {
+            "type": "object",
+            "required": [
+                "filename"
+            ],
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.presignAudioResponse": {
+            "type": "object",
+            "properties": {
+                "asset": {
+                    "$ref": "#/definitions/models.Asset"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "method": {
+                    "type": "string"
+                },
+                "storage_key": {
+                    "type": "string"
+                },
+                "upload_url": {
+                    "type": "string"
                 }
             }
         },
@@ -9683,6 +10750,46 @@
                 }
             }
         },
+        "handlers.transcriptEntry": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "number"
+                },
+                "end_ms": {
+                    "type": "integer"
+                },
+                "is_speech": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "start_ms": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.transcriptResponse": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "transcript": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.transcriptEntry"
+                    }
+                }
+            }
+        },
         "handlers.updateAssetRequest": {
             "type": "object",
             "required": [
@@ -9760,6 +10867,42 @@
                 }
             }
         },
+        "handlers.uploadResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.uploadResult"
+                    }
+                }
+            }
+        },
+        "handlers.uploadResult": {
+            "type": "object",
+            "properties": {
+                "asset": {
+                    "$ref": "#/definitions/models.Asset"
+                },
+                "asset_id": {
+                    "type": "string"
+                },
+                "code": {
+                    "description": "Code is a stable, machine-readable companion to Error on a failed result\n(CON-281): the client matches the code and falls back to the prose when it\nis unknown. Empty on a created result. See models.UploadCode*.",
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"created\" | \"failed\"",
+                    "type": "string"
+                }
+            }
+        },
         "handlers.upsertSettingRequest": {
             "type": "object",
             "required": [
@@ -9802,6 +10945,13 @@
                 "created_by": {
                     "type": "string"
                 },
+                "failure_code": {
+                    "description": "FailureCode/FailureReason say why ingestion failed (CON-312): a stable\nmodels.UploadCode* plus tenant-visible prose. Set only while status is\nfailed; any other status write clears them. Written for DOC assets —\naudio/image carry theirs on the extraction row.",
+                    "type": "string"
+                },
+                "failure_reason": {
+                    "type": "string"
+                },
                 "file": {
                     "$ref": "#/definitions/models.AssetFile"
                 },
@@ -9842,6 +10992,47 @@
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "models.AssetChunk": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "chunk_index": {
+                    "type": "integer"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "page_end": {
+                    "type": "integer"
+                },
+                "page_start": {
+                    "type": "integer"
+                },
+                "source_anchor": {
+                    "description": "SourceAnchor is the structured location backing SourceLabel (CON-280),\nstored as jsonb. nil for non-document chunks.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.SourceAnchor"
+                        }
+                    ]
+                },
+                "source_label": {
+                    "description": "SourceLabel is a human-readable citation for the chunk's origin (CON-280),\ne.g. \"Slide 4\", \"Sheet 'Q3 Pipeline' rows 10-24\", or a heading breadcrumb.\nnil for chunks that predate document ingestion (PDF/URL/MD).",
+                    "type": "string"
+                },
+                "token_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -9940,6 +11131,129 @@
                 "url": {
                     "description": "URL is a transient public URL rendered from S3Key by the handler layer\nbefore serialization. Not persisted.",
                     "type": "string"
+                }
+            }
+        },
+        "models.AudioExtraction": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "audio_seconds": {
+                    "description": "AudioSeconds is the processed source duration (a usage/quota dimension).",
+                    "type": "integer"
+                },
+                "cost_micros": {
+                    "description": "CostMicros is the run's transcription cost, snapshotted at write time from\nthe versioned gemini price table (CON-86); PriceVersion records which table.",
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "detected_language": {
+                    "type": "string"
+                },
+                "embed_model": {
+                    "type": "string"
+                },
+                "failure_code": {
+                    "description": "FailureCode is the stable, machine-readable companion to FailureReason\n(models.UploadCode*), so the client can word it without parsing prose\n(CON-312).",
+                    "type": "string"
+                },
+                "failure_reason": {
+                    "description": "FailureReason is a tenant-visible reason for a terminal failed/partial run\n(over-duration, over-cap, unusable audio).",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "normalized_s3_key": {
+                    "type": "string"
+                },
+                "price_version": {
+                    "type": "string"
+                },
+                "run_key": {
+                    "description": "RunKey makes an extraction idempotent: a duplicate enqueue for the same\n(asset_id, run_key) hits the unique index and no-ops. A re-extract uses a\nnew RunKey so it is a distinct run.",
+                    "type": "string"
+                },
+                "segment_count": {
+                    "type": "integer"
+                },
+                "source_duration_ms": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "transcribe_model": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.AudioSegment": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "cost_micros": {
+                    "description": "CostMicros is this segment's transcription cost (CON-282), snapshotted from\nthe versioned gemini price table and persisted in the SAME write that marks\nthe segment done — so cost and completion commit atomically and a resume\nthat skips a done segment never loses its cost. The extraction total sums\nthese.",
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "end_ms": {
+                    "type": "integer"
+                },
+                "extraction_id": {
+                    "type": "string"
+                },
+                "failure_reason": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "retry_count": {
+                    "type": "integer"
+                },
+                "start_ms": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "utterance_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.Bbox": {
+            "type": "object",
+            "properties": {
+                "h": {
+                    "type": "number"
+                },
+                "w": {
+                    "type": "number"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
                 }
             }
         },
@@ -10253,6 +11567,72 @@
                 }
             }
         },
+        "models.ImageBlock": {
+            "type": "object",
+            "properties": {
+                "anchor": {
+                    "description": "Anchor is the image-region location (Kind == \"image\", a normalized bbox),\nreusing the shared SourceAnchor jsonb shape.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.SourceAnchor"
+                        }
+                    ]
+                },
+                "asset_id": {
+                    "type": "string"
+                },
+                "cells": {
+                    "description": "Cells carries a table block's grid (row/col/text), stored as jsonb; nil for\nnon-table blocks.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ImageCell"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "extraction_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "description": "Kind/Level/Text mirror a documents Block: kind is heading|paragraph|\nlist_item|table|composite|...; level is a heading depth (0 otherwise).",
+                    "type": "string"
+                },
+                "level": {
+                    "type": "integer"
+                },
+                "low_confidence": {
+                    "type": "boolean"
+                },
+                "provenance": {
+                    "description": "Provenance is \"image_extraction\"; LowConfidence marks a tabular block whose\nsource is a screenshot rather than a source file (CON-281 §9).",
+                    "type": "string"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ImageCell": {
+            "type": "object",
+            "properties": {
+                "col": {
+                    "type": "integer"
+                },
+                "row": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
         "models.ImageConstraints": {
             "type": "object",
             "properties": {
@@ -10269,6 +11649,111 @@
                     "type": "integer"
                 },
                 "max_file_size_bytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.ImageExtraction": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "blocks": {
+                    "description": "Blocks is hydrated by the read API from image_blocks; not persisted here.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ImageBlock"
+                    }
+                },
+                "checksum_sha256": {
+                    "type": "string"
+                },
+                "classify_confidence": {
+                    "type": "number"
+                },
+                "classify_model": {
+                    "description": "Model ids used this run (config, never compiled in). EscalateModel is only\nmeaningful when Escalated is true.",
+                    "type": "string"
+                },
+                "cost_micros": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description_ok": {
+                    "description": "DescriptionOK/ExtractionOK/Truncated are the service's self-reported quality\nsignals; a description-ok/extraction-failed run settles to `partial`.",
+                    "type": "boolean"
+                },
+                "escalate_model": {
+                    "type": "string"
+                },
+                "escalated": {
+                    "description": "Escalated marks a one-shot re-run at a stronger model on low confidence;\nEscalationImproved records whether it actually helped (recorded regardless).",
+                    "type": "boolean"
+                },
+                "escalation_improved": {
+                    "type": "boolean"
+                },
+                "extract_model": {
+                    "type": "string"
+                },
+                "extraction_ok": {
+                    "type": "boolean"
+                },
+                "failure_code": {
+                    "description": "FailureCode is the stable, machine-readable companion to FailureReason\n(CON-281) — one of models.UploadCode* — so the client can distinguish a\nquota block from a bad image from a transient outage from a searchable-but-\npartial run without parsing prose. Empty on a clean complete run.",
+                    "type": "string"
+                },
+                "failure_reason": {
+                    "description": "FailureReason is a tenant-visible reason for a terminal failed/partial run\n(unsupported/vector, over pixel-area/size, over quota, unreadable).",
+                    "type": "string"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "input_tokens": {
+                    "description": "Token totals across the run's vision calls (classify + extract + describe +\nalt + any escalation); CostMicros is the snapshotted price, PriceVersion the\ntable it came from.",
+                    "type": "integer"
+                },
+                "is_animated": {
+                    "type": "boolean"
+                },
+                "normalized_mime": {
+                    "type": "string"
+                },
+                "normalized_s3_key": {
+                    "description": "Normalized derivative metadata (the re-encoded normalized.png the service\nwrote and future re-runs read). NormalizedS3Key is the tenant-relative key;\nnil until normalization succeeds.",
+                    "type": "string"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "price_version": {
+                    "type": "string"
+                },
+                "run_key": {
+                    "description": "RunKey makes an extraction idempotent: a duplicate enqueue for the same\n(asset_id, run_key) hits the unique index and no-ops. A re-extract uses a\nnew RunKey so it is a distinct, additive run.",
+                    "type": "string"
+                },
+                "shape": {
+                    "description": "Shape is the classified image shape (prose/conversation/social_post/\ntabular/creative); ClassifyConfidence is the model's self-reported\nconfidence in it.",
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "truncated": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "width": {
                     "type": "integer"
                 }
             }
@@ -10941,6 +12426,51 @@
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "models.SourceAnchor": {
+            "type": "object",
+            "properties": {
+                "bbox": {
+                    "description": "Bbox is the normalized image region a block was extracted from (CON-281),\nKind == \"image\". A pointer so a nil bbox is omitted while a present one is\nalways serialized in full (all four coords, incl. legitimate 0 origins).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Bbox"
+                        }
+                    ]
+                },
+                "cell_range": {
+                    "type": "string"
+                },
+                "end_ms": {
+                    "type": "integer"
+                },
+                "heading_path": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "kind": {
+                    "description": "page|slide|sheet|section|email|time|image",
+                    "type": "string"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "provenance": {
+                    "type": "string"
+                },
+                "sheet": {
+                    "type": "string"
+                },
+                "slide": {
+                    "type": "integer"
+                },
+                "start_ms": {
+                    "description": "StartMs/EndMs bound an audio transcript chunk on the ORIGINAL asset\ntimeline (CON-282), Kind == \"time\". Provenance marks how the anchor was\nderived (e.g. \"transcript\", \"image_extraction\"). Empty for non-audio,\nnon-image anchors.",
+                    "type": "integer"
                 }
             }
         },

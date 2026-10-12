@@ -4258,14 +4258,14 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Re-queues the lens (the workspace lens, or campaign_id's). Only a failed or skipped lens can be retried.",
+                "description": "Re-queues the lens (the workspace lens, or campaign_id's) when it failed or was skipped, or starts it pending when it was never created. Starting a campaign lens needs the asset to be in that campaign.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "assets"
                 ],
-                "summary": "Retry a failed or skipped analysis",
+                "summary": "Retry or start an analysis",
                 "parameters": [
                     {
                         "type": "string",
@@ -4304,7 +4304,7 @@
                         }
                     },
                     "409": {
-                        "description": "analysis_not_retryable",
+                        "description": "analysis_not_retryable: the lens is pending, running or ready, or the asset is not ready to analyse",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -12379,16 +12379,19 @@
             "type": "object",
             "properties": {
                 "analyzed_at": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "asset_id": {
                     "type": "string"
                 },
                 "campaign_id": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "campaign_name": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "commitments": {
                     "type": "array",
@@ -12449,7 +12452,12 @@
                     }
                 },
                 "relevance": {
-                    "$ref": "#/definitions/models.AnalysisRelevance"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.AnalysisRelevance"
+                        }
+                    ],
+                    "x-nullable": true
                 },
                 "status": {
                     "type": "string",
@@ -15817,7 +15825,8 @@
             "type": "object",
             "properties": {
                 "asset_analysis_id": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": true
                 },
                 "campaign_id": {
                     "type": "string"

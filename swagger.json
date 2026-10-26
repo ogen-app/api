@@ -1110,7 +1110,7 @@
         },
         "/api/auth/google/complete": {
             "post": {
-                "description": "Creates the workspace, a passwordless account linked to the Google identity, and a session (cookie set). Shares the per-IP throttle of POST /api/tenants. 409 bodies carry a code: email_in_use or google_already_linked.",
+                "description": "Creates the workspace, a passwordless account linked to the Google identity, and a session (cookie set). Shares the per-IP throttle of POST /api/tenants. invite_token redeems a tester invite. 409 bodies carry a code: email_in_use or google_already_linked; 403 bodies carry invite_required (signup is invite-only; the pending sign-up is kept for a retry with an invite) or invite_email_mismatch; an unusable invite answers 410.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1148,6 +1148,15 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
@@ -1159,6 +1168,15 @@
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1367,6 +1385,110 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/billing": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "The owner's billing card: the subscription in the provider's own status vocabulary, card brand and last four, and the net (VAT-exclusive) price. subscription is null when the workspace never bought; portal is false when there is no customer portal to open; test_mode marks the sandbox period.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billing"
+                ],
+                "summary": "Workspace billing",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/billing.BillingView"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/billing/portal": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "A fresh, signed link to the provider's customer portal (card, invoices, cancellation). It expires within 24 hours; never cache it.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billing"
+                ],
+                "summary": "Billing portal link",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.portalResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -8354,7 +8476,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/entitlements.Resolution"
+                            "$ref": "#/definitions/handlers.myEntitlementsResponse"
                         }
                     },
                     "401": {
@@ -12706,6 +12828,26 @@
                 }
             }
         },
+        "/api/signup-config": {
+            "get": {
+                "description": "Public. open: anyone may sign up. invite_only: only tester invites create workspaces, and the signup page shows a private-beta screen instead of the form. Tester invite links work in both modes. Cacheable for 30 seconds.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tenants"
+                ],
+                "summary": "Signup mode",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.signupConfigResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/tags": {
             "get": {
                 "security": [
@@ -12965,9 +13107,56 @@
                 }
             }
         },
+        "/api/tenant-invites/{token}": {
+            "get": {
+                "description": "Public. For a usable tester invite: the invited address (the signup form locks it) and when the link expires. Every unusable token (unknown, expired, revoked, redeemed) answers the same 410. Throttled per IP. Never reveals the tier, groups, note or inviter.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tenants"
+                ],
+                "summary": "Preview a tester invite",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Invite token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/signupaccess.Preview"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/tenants": {
             "post": {
-                "description": "Public self-service signup: atomically creates a tenant and its first user, opens a session, and returns the session cookie (CON-97 §7.1).",
+                "description": "Public self-service signup: atomically creates a tenant and its first user, opens a session, and returns the session cookie. invite_token redeems a tester invite (complimentary workspace on the invite's tier). While signup is invite-only, a signup without one answers 403 {code: invite_required}; an address other than the invited one answers 403 {code: invite_email_mismatch}; an unusable invite answers 410.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13005,8 +13194,26 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -13542,6 +13749,68 @@
                 }
             }
         },
+        "/api/webhooks/lemonsqueezy": {
+            "post": {
+                "description": "Signature-verified (X-Signature, HMAC-SHA256 of the raw body) ingest of subscription and payment events. Redeliveries are recognised by body hash; snapshots older than the mirror are ignored; events from the other store mode are acknowledged and ignored. A failure answers 500 so the provider retries.",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billing"
+                ],
+                "summary": "Lemon Squeezy webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "HMAC-SHA256 hex of the body",
+                        "name": "X-Signature",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Acknowledged"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "processing failed; the provider retries",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/webhooks/resend": {
             "post": {
                 "description": "Signature-verified ingest of Resend events. Bounces/complaints\nsuppress the address; delivery events update the send audit.",
@@ -13581,6 +13850,96 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/workspace/plan": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "A complimentary workspace (a tester's, complimentary=true on /api/me/entitlements) without a live subscription switches at once: 200 with the entitlements read, no checkout, no charge; it may pick any purchasable tier, and this works while billing is off. Otherwise, without a live subscription: 202 with a hosted checkout to redirect to (checkout.trial says whether the free month applies). With one: 200 with the entitlements read after the change. An upgrade lands now with proration; a downgrade is scheduled for the renewal (scheduled_change); choosing the current plan cancels a pending downgrade; a tier change during the free month ends it and charges now. tier_id is a tier or tier version id; price_id defaults to the monthly price.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billing"
+                ],
+                "summary": "Choose the workspace plan",
+                "parameters": [
+                    {
+                        "description": "Plan choice",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.changePlanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.myEntitlementsResponse"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.checkoutResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -13642,7 +14001,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Creates a new, independent workspace owned by the authenticated account, provisions its Zernio profile, and returns it. Does not switch — the caller chooses when to move into it (CON-147).",
+                "description": "Creates a new, independent workspace owned by the authenticated account and returns it. Its Zernio profile is created by its first connect link. Does not switch — the caller chooses when to move into it (CON-147). While signup is invite-only an account may own a limited number of workspaces; past it the answer is 403 {code: workspace_limit}. A new workspace is never complimentary.",
                 "consumes": [
                     "application/json"
                 ],
@@ -13682,6 +14041,15 @@
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -13804,6 +14172,116 @@
         }
     },
     "definitions": {
+        "billing.BillingView": {
+            "type": "object",
+            "properties": {
+                "portal": {
+                    "description": "Portal reports whether there is a customer portal to send the owner to.",
+                    "type": "boolean"
+                },
+                "subscription": {
+                    "description": "Subscription is nil when the workspace never bought.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/billing.SubscriptionView"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "test_mode": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "billing.CardView": {
+            "type": "object",
+            "properties": {
+                "brand": {
+                    "type": "string"
+                },
+                "last_four": {
+                    "type": "string"
+                }
+            }
+        },
+        "billing.Checkout": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "trial": {
+                    "description": "Trial reports whether the free month was applied to this checkout.",
+                    "type": "boolean"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "billing.PriceView": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "period": {
+                    "type": "string"
+                }
+            }
+        },
+        "billing.ScheduledChangeView": {
+            "type": "object",
+            "properties": {
+                "direction": {
+                    "type": "string"
+                },
+                "effective_at": {
+                    "type": "string"
+                },
+                "tier_id": {
+                    "type": "string"
+                },
+                "version_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "billing.SubscriptionView": {
+            "type": "object",
+            "properties": {
+                "card": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/billing.CardView"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "ends_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "price": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/billing.PriceView"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "renews_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "branddistill.Failure": {
             "type": "object",
             "properties": {
@@ -13861,41 +14339,6 @@
                 },
                 "value": {},
                 "value_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "entitlements.Resolution": {
-            "type": "object",
-            "properties": {
-                "change_reason": {
-                    "type": "string"
-                },
-                "entitlements": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/entitlements.EntitlementValue"
-                    }
-                },
-                "prices": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.TenantTierVersionPrice"
-                    }
-                },
-                "purchasable": {
-                    "type": "boolean"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "tier_id": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "integer"
-                },
-                "version_id": {
                     "type": "string"
                 }
             }
@@ -15052,6 +15495,25 @@
                 }
             }
         },
+        "handlers.changePlanRequest": {
+            "type": "object",
+            "properties": {
+                "price_id": {
+                    "type": "string"
+                },
+                "tier_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.checkoutResponse": {
+            "type": "object",
+            "properties": {
+                "checkout": {
+                    "$ref": "#/definitions/billing.Checkout"
+                }
+            }
+        },
         "handlers.cloneCampaignTypeRequest": {
             "type": "object",
             "required": [
@@ -15222,6 +15684,10 @@
                 "token"
             ],
             "properties": {
+                "invite_token": {
+                    "description": "InviteToken redeems a tester invite; the Google address must be the\ninvited one.",
+                    "type": "string"
+                },
                 "tenant_name": {
                     "type": "string",
                     "maxLength": 200
@@ -15779,6 +16245,72 @@
                 "before": {
                     "description": "Before bounds the update to notifications the caller has actually seen\n(seq \u003c= Before), so one that arrives mid-click stays unread. 0 = all.",
                     "type": "integer"
+                }
+            }
+        },
+        "handlers.myEntitlementsResponse": {
+            "type": "object",
+            "properties": {
+                "billing_period": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "billing_required": {
+                    "type": "boolean"
+                },
+                "change_reason": {
+                    "type": "string"
+                },
+                "complimentary": {
+                    "description": "Complimentary marks a tester's workspace: never billed, and choosing a\nplan switches it at once with no checkout. Reported whether or not\nbilling is on.",
+                    "type": "boolean"
+                },
+                "entitlements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entitlements.EntitlementValue"
+                    }
+                },
+                "prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TenantTierVersionPrice"
+                    }
+                },
+                "purchasable": {
+                    "type": "boolean"
+                },
+                "renews_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "scheduled_change": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/billing.ScheduledChangeView"
+                        }
+                    ],
+                    "x-nullable": true
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tier_id": {
+                    "type": "string"
+                },
+                "trial_eligible": {
+                    "type": "boolean",
+                    "x-nullable": true
+                },
+                "trial_ends_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer"
+                },
+                "version_id": {
+                    "type": "string"
                 }
             }
         },
@@ -16510,6 +17042,17 @@
                 }
             }
         },
+        "handlers.portalResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.postAnalyticsResponse": {
             "type": "object",
             "properties": {
@@ -16785,14 +17328,87 @@
                 }
             }
         },
+        "handlers.pricingPrice": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "boolean"
+                },
+                "billing_interval": {
+                    "type": "string"
+                },
+                "country_code": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "net_minor": {
+                    "type": "integer"
+                },
+                "tier_version_id": {
+                    "type": "string"
+                }
+            }
+        },
         "handlers.pricingResponse": {
             "type": "object",
             "properties": {
                 "tiers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/entitlements.Resolution"
+                        "$ref": "#/definitions/handlers.pricingTier"
                     }
+                }
+            }
+        },
+        "handlers.pricingTier": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "description": "Available: the tier can be bought now (billing on and at least one of its\nprices sold by a provider variant).",
+                    "type": "boolean"
+                },
+                "change_reason": {
+                    "type": "string"
+                },
+                "entitlements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entitlements.EntitlementValue"
+                    }
+                },
+                "free_trial": {
+                    "description": "FreeTrial marks the tier carrying the marketing free month; TrialDays is\nits length (null without the offer).",
+                    "type": "boolean"
+                },
+                "prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.pricingPrice"
+                    }
+                },
+                "purchasable": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tier_id": {
+                    "type": "string"
+                },
+                "trial_days": {
+                    "type": "integer",
+                    "x-nullable": true
+                },
+                "version": {
+                    "type": "integer"
+                },
+                "version_id": {
+                    "type": "string"
                 }
             }
         },
@@ -16977,9 +17593,25 @@
                 }
             }
         },
+        "handlers.signupConfigResponse": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "open",
+                        "invite_only"
+                    ]
+                }
+            }
+        },
         "handlers.signupRequest": {
             "type": "object",
             "properties": {
+                "invite_token": {
+                    "description": "InviteToken redeems a tester invite: the new workspace is\ncomplimentary, on the invite's tier and in its groups. The address must\nbe the invited one.",
+                    "type": "string"
+                },
                 "tenant": {
                     "type": "object",
                     "required": [
@@ -21430,6 +22062,17 @@
                     "type": "string"
                 },
                 "slug": {
+                    "type": "string"
+                }
+            }
+        },
+        "signupaccess.Preview": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "expires_at": {
                     "type": "string"
                 }
             }

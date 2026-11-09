@@ -1074,6 +1074,334 @@
                 }
             }
         },
+        "/api/assistant": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Sends a message to the assistant from any screen and streams the reply. viewContext\n(version 1) is the screen: screen, scope ({kind: workspace|campaign|post, id}), focus,\nselection ({kind, ids | allMatching}), filter, savedViewId, sort, window and visible. It holds\nreferences only; the server reloads them in the caller's workspace and drops ids that no\nlonger exist. The scope names the thread: the conversation continues across the screens of\none workspace, campaign or post. A malformed viewContext is a 400 that names the field; a\ncampaign or post scope that doesn't exist is a 404; an instruction over 8000 characters is a 400.\nEvents, in order: \"explanation_delta\" {\"delta\"} as the reply streams; \"tool_call\" {\"name\",\"input\",\"ref\"}\nand \"tool_result\" {\"name\",\"ref\",\"ok\"} for each tool, \"ok\" false when it refused or hit a conflict; \"pack_loaded\" {\"pack\"} when the turn restarted\nwith another domain's tools (deltas before it are void); one \"ui_action\" per change to the screen,\nonce the reply is final: {\"type\": navigate|set_filter|select|open_saved_view, \"screen\", \"campaignId\",\n\"focus\" {kind,id}, \"filter\", \"selection\" {kind,ids}, \"savedViewId\"}, every reference already checked;\nthen \"complete\" with {\"explanation\",\"action\",\"uiActions\",\"touched\":[{\"kind\",\"id\"}],\"packs\"}, where\ntouched names what changed (no id: every entity of the kind) for the client to refresh, plus\n\"unsaved\": true when the turn ran but could not be stored in the thread. \"error\"\ncarries {\"message\":\"...\",\"code\":\u003chttp_code\u003e} and ends the stream.\nOffers: runContentPlan, redistributePosts, updateCampaignPlatforms, moveIdeas, deleteIdeas, schedulePost and\napplyCalendarMoves are always held back as an offer; generatePosts, draftPost, draftIdeas, moreLikeThese,\nsetIdeaVerdicts and tagAssets only above a few items. Smaller batches and other tools (distillMoreIdeas\namong them) run straight away, so a client can't rely on an offer before every write. \"proposal_created\" {\"id\",\"tool\",\"summary\",\n\"expiresAt\",\"options\"} streams once the reply is final, and \"proposal_resolved\" {\"id\",\"status\",\"chosen\"} when\none is answered in chat. Cards answer through POST /api/assistant/proposals/{id}/confirm or /dismiss.\nPacks stream their own progress between: the campaign pack forwards the campaign assistant's events\n(content_plan_idea, generate_posts_idea, draft_post_*, …), and draftIdeas sends \"idea_draft_post\" per post.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "assistant"
+                ],
+                "summary": "Universal assistant turn (SSE)",
+                "parameters": [
+                    {
+                        "description": "Message and screen",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.assistantTurnRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: explanation_delta / tool_call / tool_result / complete / error"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assistant/actions/{id}/undo": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Restores what a reversible assistant change replaced (campaign dates, the campaign brief).\n409 when it was already undone, or when it was edited again since: undo never overwrites a later edit.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "assistant"
+                ],
+                "summary": "Undo an assistant change",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Undo id from the change's result",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.undoResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assistant/proposals/{id}/confirm": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Runs an offer the assistant proposed, exactly as proposed, and streams the work's events\nlike a chat turn: the work's own events, \"proposal_resolved\", then \"complete\" with a\nCampaignAssistantResponse. \"error\" carries {\"message\":\"...\",\"code\":\u003chttp_code\u003e}: 404 when the\noffer does not exist, 409 when it was already answered, expired, names an unknown option, or\nthe work itself was refused.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "assistant"
+                ],
+                "summary": "Confirm an assistant offer (SSE)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Proposal id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Picked option",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.confirmProposalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: work events / proposal_resolved / complete / error"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assistant/proposals/{id}/dismiss": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Withdraws an offer the assistant proposed. Nothing runs. Returns the turn's\nCampaignAssistantResponse (action \"answered\").",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "assistant"
+                ],
+                "summary": "Dismiss an assistant offer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Proposal id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/assistant/threads/{scope}/messages": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns a thread's latest messages, oldest first. scope is \"workspace\", \"campaign:\u003cid\u003e\" or\n\"post:\u003cid\u003e\". A user message carries the view_context it was sent from; a model message's\ncontent is the JSON of that turn's \"complete\" event.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "assistant"
+                ],
+                "summary": "Universal assistant thread",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "workspace | campaign:\u003cid\u003e | post:\u003cid\u003e",
+                        "name": "scope",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.AssistantMessage"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/auth/google/callback": {
             "get": {
                 "description": "Google redirects here. Always answers 302: into the app with a session cookie on success, or to the login page with ?error=\u003ccode\u003e.",
@@ -3375,7 +3703,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Sends an instruction to the Campaign Assistant and streams progress via Server-Sent Events.\n\"explanation_delta\" carries {\"delta\":\"...\"} fragments as the reply streams. \"tool_call\"/\"tool_result\"\nsignal tool invocations. When a content plan runs, \"content_plan_started\", \"content_plan_post\"\n(etc.) and \"content_plan_complete\" are forwarded; when the brief is enriched, \"enrich_brief_started\",\nthe per-field \"enrich_brief_*_delta\" events and \"enrich_brief_complete\" are forwarded. A final\n\"complete\" event carries the CampaignAssistantResponse. \"error\" carries {\"message\":\"...\",\"code\":\u003chttp_code\u003e}.\nAvailable to any user in the campaign's tenant.",
+                "description": "Sends an instruction to the Campaign Assistant and streams progress via Server-Sent Events.\n\"explanation_delta\" carries {\"delta\":\"...\"} fragments as the reply streams. \"tool_call\"/\"tool_result\"\nsignal tool invocations. When a content plan runs, \"content_plan_started\", \"content_plan_idea\"\n(etc.) and \"content_plan_complete\" are forwarded; when the brief is enriched, \"enrich_brief_started\",\nthe per-field \"enrich_brief_*_delta\" events and \"enrich_brief_complete\" are forwarded. A final\n\"complete\" event carries the CampaignAssistantResponse. \"error\" carries {\"message\":\"...\",\"code\":\u003chttp_code\u003e}.\nAvailable to any user in the campaign's tenant.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3590,14 +3918,14 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Calls the AI content plan flow and streams progress via Server-Sent Events.\nEach step emits an SSE event of type \"step\" with payload {\"step\":\"\u003cname\u003e\",\"status\":\"done\"}.\nOn success a final \"complete\" event carries the full ContentPlanResponse payload.\nOn failure an \"error\" event carries {\"message\":\"\u003ctext\u003e\",\"code\":\u003chttp_code\u003e}.",
+                "description": "Calls the AI content plan flow and streams progress via Server-Sent Events. The plan is saved\nas ideas (origin content_plan), each with its thesis as the note and a plan (platform, post type,\nphase, target date); no post is created until ideas are compiled or drafted. Running it again\nadds a new batch. Each step emits \"step\" {\"step\":\"\u003cname\u003e\",\"status\":\"done\"}; each saved idea emits\n\"idea\" {\"idea\":{...},\"index\":\u003cslot\u003e,\"id\":\"\u003cidea id\u003e\"}; dropped items emit \"warning\".\nOn success a final \"complete\" event carries the full ContentPlanResponse payload ({ideas, ...}).\nOn failure an \"error\" event carries {\"message\":\"\u003ctext\u003e\",\"code\":\u003chttp_code\u003e}.",
                 "produces": [
                     "text/event-stream"
                 ],
                 "tags": [
                     "campaigns"
                 ],
-                "summary": "Generate draft posts (SSE)",
+                "summary": "Plan the campaign's content as ideas (SSE)",
                 "parameters": [
                     {
                         "type": "string",
@@ -3609,7 +3937,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "SSE stream: step / complete / error events"
+                        "description": "SSE stream: step / idea / warning / complete / error events"
                     },
                     "401": {
                         "description": "Unauthorized",
@@ -3657,7 +3985,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Generates a few new draft posts for a platform subset, a single\nphase, and a publish-date window (CON-114). Streams the same\nstep / post / warning / complete / error events as generate-draft.\nAvailable to any user in the campaign's tenant.",
+                "description": "Plans a few new ideas for a platform subset, a single phase, and a\npublish-date window (CON-114), saved as ideas with that plan; no post is\ncreated. Streams the same step / idea / warning / complete / error events\nas generate-draft.\nAvailable to any user in the campaign's tenant.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3667,7 +3995,7 @@
                 "tags": [
                     "campaigns"
                 ],
-                "summary": "Generate targeted posts (SSE)",
+                "summary": "Plan targeted ideas (SSE)",
                 "parameters": [
                     {
                         "type": "string",
@@ -3679,7 +4007,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "SSE stream: step / post / warning / complete / error events"
+                        "description": "SSE stream: step / idea / warning / complete / error events"
                     },
                     "400": {
                         "description": "Bad Request",
@@ -6684,7 +7012,7 @@
                     },
                     {
                         "type": "string",
-                        "description": "asset_analysis, manual",
+                        "description": "asset_analysis, content_plan, assistant, manual",
                         "name": "origin",
                         "in": "query"
                     },
@@ -6966,6 +7294,194 @@
                 }
             }
         },
+        "/api/ideas/compile": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Makes one `planned` post from 1–10 ideas: a draft_thesis note with a thesis per idea (its\ntitle, then its angle or note), the ideas' source assets as its sources, and a link to each\nidea (GET /api/posts/{id}/ideas). The campaign defaults to the one the ideas share (an idea in no\ncampaign goes along with it); the title\nto the first idea's; platform, post type, phase and target date to the first idea plan that sets\neach. A target date is placed at the campaign's publishing time. A platform or post type you name\nmust be one of the campaign's; a stale suggested one is dropped. The ideas themselves are left as\nthey are, so one idea can feed several posts.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ideas"
+                ],
+                "summary": "Compile ideas into a planned post",
+                "parameters": [
+                    {
+                        "description": "Ideas and overrides",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.compileIdeasRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.compileIdeasResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ideas/draft": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Writes finished posts from 1–10 ideas and saves them as drafts with a body. Each idea gets its own\npost on each platform, or with `together` one post per platform from all of them; at most\nDRAFT_POST_MAX posts a request. The writer works from each idea's title, angle, reasoning and\nsources (or its note), in the campaign's brand voice; the ideas' source assets become the posts'\nsources, and every post links to its ideas (GET /api/posts/{id}/ideas). The campaign defaults to\nthe one the ideas share; the platform, post type, phase and date to the first idea plan that sets\neach. Requests that can't run are a plain 400 before the stream opens.\nEvents: \"post\" {postId,title,platformId,ideaIds} as each post is saved; \"complete\"\n{posts,warnings}; \"error\" {message,code}, after which the posts already written are kept.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "ideas"
+                ],
+                "summary": "Write posts from ideas (SSE)",
+                "parameters": [
+                    {
+                        "description": "Ideas, platforms and steering",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.draftIdeasRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream: post / complete / error"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ideas/slots": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns the ideas planned for days from `from` to `to` (both YYYY-MM-DD, inclusive, at most 93\ndays), ordered by day, for the calendar to draw beside the posts. Each item is `kind: \"idea\"`:\na day an idea plans to land on, never a post, so it doesn't count toward goals. Only open ideas\nare slots: one with a post made from it is that post now, and one turned down (\"no\") is gone.\nWith `campaign_id` the slots are that campaign's; without, every campaign's but the archived ones.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ideas"
+                ],
+                "summary": "Calendar slots of dated ideas",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "First day, YYYY-MM-DD",
+                        "name": "from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Last day, YYYY-MM-DD",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only this campaign's ideas",
+                        "name": "campaign_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.IdeaSlot"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/ideas/{id}": {
             "delete": {
                 "security": [
@@ -7016,7 +7532,7 @@
                 "tags": [
                     "ideas"
                 ],
-                "summary": "Edit an idea's title, note, or campaign (presence-aware)",
+                "summary": "Edit an idea's title, note, campaign or plan (presence-aware)",
                 "parameters": [
                     {
                         "type": "string",
@@ -7026,7 +7542,7 @@
                         "required": true
                     },
                     {
-                        "description": "any of title, note, campaign_id (null detaches)",
+                        "description": "any of title, note, campaign_id (null detaches), plan (replaces the whole plan; null clears it; a phase needs a campaign, and moving campaign drops the phase)",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -7048,6 +7564,51 @@
                             "type": "object",
                             "additionalProperties": {
                                 "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ideas/{id}/posts": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "ideas"
+                ],
+                "summary": "Posts made from an idea, oldest first",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Idea id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.IdeaPostRef"
                             }
                         }
                     },
@@ -9796,7 +10357,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Creates a new post. The created_by field is set from the authenticated session.\nThe `content` field is a Markdown string; the frontend renders it via BlockNote.\n`platform_id` and `platform_post_type` are required only when `status` is not `draft`;\ndrafts can be saved without a platform chosen up front.",
+                "description": "Creates a new post. The created_by field is set from the authenticated session.\nThe `content` field is a Markdown string; the frontend renders it via BlockNote.\n`platform_id` and `platform_post_type` are required only when `status` is not `planned`\nor `draft`; those can be saved without a platform chosen up front. `planned` is a post\nwith theses (a draft_thesis note) and no body: sent with a non-empty `content`, it is\ncreated as a `draft`.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10027,7 +10588,7 @@
                         "CookieAuth": []
                     }
                 ],
-                "description": "Replaces all mutable fields of an existing post.\nThe `content` field is a Markdown string; the frontend renders it via BlockNote.\n`platform_id` and `platform_post_type` are required only when the new `status` is\nnot `draft`; transitioning a draft to `ready_for_publish` (or beyond) without a\nplatform chosen returns 400.",
+                "description": "Replaces all mutable fields of an existing post.\nThe `content` field is a Markdown string; the frontend renders it via BlockNote.\n`platform_id` and `platform_post_type` are required only when the new `status` is\nnot `planned` or `draft`; transitioning a draft to `ready_for_publish` (or beyond) without a\nplatform chosen returns 400. A `planned` post becomes a `draft` as soon as an update gives\nit a non-empty `content`, whatever status the request sends; it can't move anywhere else.",
                 "consumes": [
                     "application/json"
                 ],
@@ -10740,6 +11301,51 @@
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/posts/{id}/ideas": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "posts"
+                ],
+                "summary": "Ideas a post was made from, in order",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Post Sqid",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.PostSourceIdea"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -14816,6 +15422,22 @@
                 }
             }
         },
+        "handlers.assistantTurnRequest": {
+            "type": "object",
+            "required": [
+                "instruction",
+                "viewContext"
+            ],
+            "properties": {
+                "instruction": {
+                    "type": "string"
+                },
+                "viewContext": {
+                    "description": "ViewContext is the screen the message is sent from; its scope names the\nthread. See domain/viewcontext for the schema.",
+                    "type": "object"
+                }
+            }
+        },
         "handlers.attachFromAssetRequest": {
             "type": "object",
             "properties": {
@@ -15677,6 +16299,59 @@
                 }
             }
         },
+        "handlers.compileIdeasRequest": {
+            "type": "object",
+            "required": [
+                "idea_ids"
+            ],
+            "properties": {
+                "campaign_id": {
+                    "description": "CampaignID defaults to the campaign the ideas share; an idea in no\ncampaign goes along with it.",
+                    "type": "string"
+                },
+                "idea_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "phase_id": {
+                    "type": "string"
+                },
+                "platform_id": {
+                    "description": "PlatformID, PlatformPostType, PhaseID and TargetDate default to the\nfirst idea plan that sets each.",
+                    "type": "string"
+                },
+                "platform_post_type": {
+                    "type": "string"
+                },
+                "target_date": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-12-01"
+                },
+                "title": {
+                    "description": "Title defaults to the first idea's title.",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.compileIdeasResponse": {
+            "type": "object",
+            "properties": {
+                "ideas": {
+                    "description": "Ideas are the ideas the post was made from, in order.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.PostSourceIdea"
+                    }
+                },
+                "post": {
+                    "$ref": "#/definitions/models.Post"
+                }
+            }
+        },
         "handlers.completeGoogleSignupRequest": {
             "type": "object",
             "required": [
@@ -15711,6 +16386,15 @@
                 },
                 "user": {
                     "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "handlers.confirmProposalRequest": {
+            "type": "object",
+            "properties": {
+                "optionId": {
+                    "description": "OptionID is the option the user picked, when the offer had options.",
+                    "type": "string"
                 }
             }
         },
@@ -15958,6 +16642,52 @@
                     "items": {
                         "$ref": "#/definitions/models.IdeaDistillRun"
                     }
+                }
+            }
+        },
+        "handlers.draftIdeasRequest": {
+            "type": "object",
+            "required": [
+                "idea_ids"
+            ],
+            "properties": {
+                "campaign_id": {
+                    "description": "CampaignID defaults to the campaign the ideas share.",
+                    "type": "string"
+                },
+                "idea_ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "instruction": {
+                    "description": "Instruction steers the writing (\"punchier\", \"for CFOs\").",
+                    "type": "string"
+                },
+                "phase_id": {
+                    "type": "string"
+                },
+                "platform_ids": {
+                    "description": "PlatformIDs default to the first idea plan's platform.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "platform_post_type": {
+                    "description": "PlatformPostType needs exactly one platform.",
+                    "type": "string"
+                },
+                "target_date": {
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-12-01"
+                },
+                "together": {
+                    "description": "Together writes one post per platform from all the ideas; otherwise\neach idea gets its own post on each platform.",
+                    "type": "boolean"
                 }
             }
         },
@@ -17163,7 +17893,7 @@
                     }
                 },
                 "platform_id": {
-                    "description": "PlatformID + PlatformPostType are required only when status is not\n\"draft\" — see update.RequirePlatformIfNotDraft. Drafts can be saved\nbefore the user has picked a platform.",
+                    "description": "PlatformID + PlatformPostType are required only when status is not\n\"planned\" or \"draft\" — see update.RequirePlatformIfNotDraft. Those can be saved\nbefore the user has picked a platform.",
                     "type": "string"
                 },
                 "platform_post_type": {
@@ -17741,6 +18471,20 @@
                 }
             }
         },
+        "handlers.undoResponse": {
+            "type": "object",
+            "properties": {
+                "entityId": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "undone": {
+                    "type": "boolean"
+                }
+            }
+        },
         "handlers.updateAssetRequest": {
             "type": "object",
             "required": [
@@ -17791,6 +18535,15 @@
                 },
                 "note": {
                     "type": "string"
+                },
+                "plan": {
+                    "description": "Plan replaces the whole plan; null clears it, and an omitted plan stays.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.IdeaPlan"
+                        }
+                    ],
+                    "x-nullable": true
                 },
                 "title": {
                     "type": "string"
@@ -18603,6 +19356,53 @@
                     "x-nullable": true
                 }
             }
+        },
+        "models.AssistantMessage": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "scope_id": {
+                    "type": "string"
+                },
+                "scope_kind": {
+                    "$ref": "#/definitions/models.AssistantScopeKind"
+                },
+                "view_context": {
+                    "description": "ViewContext is nil on model turns, and on user turns sent without one.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.JSONMap"
+                        }
+                    ]
+                }
+            }
+        },
+        "models.AssistantScopeKind": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "campaign",
+                "post"
+            ],
+            "x-enum-varnames": [
+                "AssistantScopeWorkspace",
+                "AssistantScopeCampaign",
+                "AssistantScopePost"
+            ]
         },
         "models.AudioExtraction": {
             "type": "object",
@@ -19701,6 +20501,13 @@
                     "type": "string",
                     "x-nullable": true
                 },
+                "asset_ids": {
+                    "description": "AssetIDs are the assets a generated idea drew on, in order; empty\nfor the others.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "author": {
                     "description": "Author is derived on reads: the writer of a manual idea, nil for an\nanalysis idea.",
                     "allOf": [
@@ -19750,6 +20557,15 @@
                     "type": "integer",
                     "x-nullable": true
                 },
+                "grounding_mode": {
+                    "description": "GroundingMode says whether a generated idea drew on the campaign's\nsources; nil for ideas people wrote and for analysis ideas, whose\nsource is SourceAsset.",
+                    "type": "string",
+                    "enum": [
+                        "grounded",
+                        "exploratory"
+                    ],
+                    "x-nullable": true
+                },
                 "group_key": {
                     "description": "GroupKey is the group a grouped list lists the idea under.",
                     "type": "string"
@@ -19765,7 +20581,17 @@
                     "type": "string",
                     "enum": [
                         "",
-                        "asset_analysis"
+                        "asset_analysis",
+                        "content_plan",
+                        "assistant"
+                    ]
+                },
+                "plan": {
+                    "description": "Plan is where the idea would land as a post; every field nil for an\nidea without one. The columns are plan_platform_id, plan_post_type,\nplan_phase_id and plan_target_date.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.IdeaPlan"
+                        }
                     ]
                 },
                 "rationale": {
@@ -19901,6 +20727,54 @@
                 }
             }
         },
+        "models.IdeaPlan": {
+            "type": "object",
+            "properties": {
+                "phase_id": {
+                    "description": "PhaseID is a campaign type phase of the idea's campaign.",
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "platform_id": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "post_type": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "target_date": {
+                    "description": "TargetDate is the day it would publish; a dated idea shows on the\ncalendar as a slot, never as a post.",
+                    "type": "string",
+                    "x-nullable": true,
+                    "example": "2026-09-01"
+                }
+            }
+        },
+        "models.IdeaPostRef": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "platform_id": {
+                    "type": "string"
+                },
+                "scheduled_at": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "status": {
+                    "$ref": "#/definitions/models.PostStatus"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "models.IdeaReading": {
             "type": "object",
             "properties": {
@@ -19909,6 +20783,64 @@
                 },
                 "campaign_name": {
                     "type": "string"
+                }
+            }
+        },
+        "models.IdeaSlot": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "campaign_name": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string",
+                    "example": "2026-12-01"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "idea"
+                    ]
+                },
+                "origin": {
+                    "type": "string",
+                    "enum": [
+                        "",
+                        "asset_analysis",
+                        "content_plan",
+                        "assistant"
+                    ]
+                },
+                "phase_id": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "platform_id": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "platform_post_type": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "title": {
+                    "type": "string"
+                },
+                "verdict": {
+                    "description": "Verdict is nil while the idea waits for triage.",
+                    "type": "string",
+                    "enum": [
+                        "yes",
+                        "later"
+                    ],
+                    "x-nullable": true
                 }
             }
         },
@@ -20428,6 +21360,15 @@
                         }
                     ]
                 },
+                "grounding_mode": {
+                    "description": "GroundingMode records whether generation drew on the campaign's own\nsources. Nil for posts written by hand, or generated before it was\nrecorded.",
+                    "type": "string",
+                    "enum": [
+                        "grounded",
+                        "exploratory"
+                    ],
+                    "x-nullable": true
+                },
                 "id": {
                     "type": "string"
                 },
@@ -20684,6 +21625,7 @@
                 "user_cancel",
                 "user_retry",
                 "post_cloned",
+                "post_compiled",
                 "post_restored",
                 "quality_assessed"
             ],
@@ -20709,6 +21651,7 @@
                 "PostLogEventUserCancel",
                 "PostLogEventUserRetry",
                 "PostLogEventPostCloned",
+                "PostLogEventPostCompiled",
                 "PostLogEventPostRestored",
                 "PostLogEventQualityAssessed"
             ]
@@ -20748,9 +21691,30 @@
                 }
             }
         },
+        "models.PostSourceIdea": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "origin": {
+                    "type": "string",
+                    "enum": [
+                        "",
+                        "asset_analysis",
+                        "content_plan",
+                        "assistant"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "models.PostStatus": {
             "type": "string",
             "enum": [
+                "planned",
                 "draft",
                 "ready_for_publish",
                 "scheduled",
@@ -20760,6 +21724,7 @@
                 "not_published"
             ],
             "x-enum-varnames": [
+                "PostStatusPlanned",
                 "PostStatusDraft",
                 "PostStatusReadyForPublish",
                 "PostStatusScheduled",
